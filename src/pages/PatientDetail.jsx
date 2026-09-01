@@ -4,6 +4,7 @@ import { sb, euro, fmtDate, fmtTime, fullName, age } from '../supabase.js'
 import { Modal, StatusBadge, InvoiceBadge, useToast } from '../ui.jsx'
 import Odontogram, { CONDITIONS } from '../Odontogram.jsx'
 import { PatientModal } from './Patients.jsx'
+import { useClinic } from '../clinic.jsx'
 
 const TABS = ['Overview', 'Dental chart', 'Treatment plans', 'Billing', 'Imaging', 'Comms']
 
@@ -449,6 +450,7 @@ function ImagingTab({ patientId }) {
 }
 
 function CommsTab({ patientId, patient }) {
+  const { clinic } = useClinic()
   const [log, setLog] = useState([])
   const toast = useToast()
   const load = () =>
@@ -458,8 +460,8 @@ function CommsTab({ patientId, patient }) {
 
   const send = async (channel) => {
     const body = channel === 'sms'
-      ? `Hi ${patient.first_name}, a quick note from Dentora Dental — reply or call us on 01 555 0123.`
-      : `Dear ${patient.first_name}, this is a message from Dentora Dental regarding your care.`
+      ? `Hi ${patient.first_name}, a quick note from ${clinic.name}${clinic.phone ? ` — reply or call us on ${clinic.phone}` : ''}.`
+      : `Dear ${patient.first_name}, this is a message from ${clinic.name} regarding your care.`
     await sb.from('dental_comms_log').insert({ patient_id: patientId, channel, body })
     toast(channel === 'sms' ? 'SMS queued (demo)' : 'Email queued (demo)')
     load()

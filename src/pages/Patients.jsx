@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { sb, age, fmtDate } from '../supabase.js'
 import { Modal, useToast } from '../ui.jsx'
+import { useClinic } from '../clinic.jsx'
 
 export default function Patients() {
+  const { clinicId } = useClinic()
   const [patients, setPatients] = useState([])
   const [q, setQ] = useState('')
   const [adding, setAdding] = useState(false)
@@ -19,7 +21,7 @@ export default function Patients() {
   )
 
   const add = async (form) => {
-    const { data, error } = await sb.from('dental_patients').insert(form).select().single()
+    const { data, error } = await sb.from('dental_patients').insert({ ...form, clinic_id: clinicId }).select().single()
     if (error) return toast('Error: ' + error.message)
     toast('Patient added')
     setAdding(false)

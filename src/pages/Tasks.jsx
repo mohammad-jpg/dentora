@@ -1,21 +1,27 @@
 import { useEffect, useState } from 'react'
 import { sb, fmtDate } from '../supabase.js'
 import { useToast } from '../ui.jsx'
+import { useClinic } from '../clinic.jsx'
 
 export default function Tasks() {
+  const { clinicId } = useClinic()
   const [tasks, setTasks] = useState([])
   const [title, setTitle] = useState('')
   const [assignee, setAssignee] = useState('Reception')
   const [due, setDue] = useState('')
+  const [team, setTeam] = useState([])
   const toast = useToast()
 
   const load = () =>
     sb.from('dental_tasks').select('*').order('done').order('due_date').then(({ data }) => setTasks(data || []))
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    sb.from('dental_practitioners').select('name').order('name').then(({ data }) => setTeam((data || []).map((p) => p.name)))
+  }, [])
 
   const add = async () => {
     if (!title.trim()) return
-    await sb.from('dental_tasks').insert({ title: title.trim(), assignee, due_date: due || null })
+    await sb.from('dental_tasks').insert({ title: title.trim(), assignee, due_date: due || null, clinic_id: clinicId })
     setTitle(''); setDue('')
     toast('Task added')
     load()
@@ -42,7 +48,7 @@ export default function Tasks() {
           <input className="input" placeholder="New task…" value={title} onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && add()} />
           <select className="input" style={{ width: 170 }} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-            {['Reception', 'Practice Manager', 'Dr. Sarah Kelly', "Dr. James O'Brien", 'Emma Walsh'].map((a) => <option key={a}>{a}</option>)}
+            {['Reception', 'Practice Manager', ...team].map((a) => <option key={a}>{a}</option>)}
           </select>
           <input type="date" className="input" style={{ width: 150 }} value={due} onChange={(e) => setDue(e.target.value)} />
           <button className="btn" onClick={add}>Add</button>

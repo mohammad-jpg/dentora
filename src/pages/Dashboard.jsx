@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { sb, euro, fmtTime, fullName } from '../supabase.js'
 import { Stat, StatusBadge } from '../ui.jsx'
+import { useClinic } from '../clinic.jsx'
 
 export default function Dashboard() {
+  const { clinic } = useClinic()
   const [appts, setAppts] = useState([])
   const [tasks, setTasks] = useState([])
   const [recallsDue, setRecallsDue] = useState(0)
   const [outstanding, setOutstanding] = useState(0)
+  const [patientCount, setPatientCount] = useState(null)
 
   useEffect(() => {
     const start = new Date(); start.setHours(0, 0, 0, 0)
@@ -22,6 +25,8 @@ export default function Dashboard() {
       .then(({ data }) => setTasks(data || []))
     sb.from('dental_recalls').select('id').eq('status', 'due')
       .then(({ data }) => setRecallsDue((data || []).length))
+    sb.from('dental_patients').select('id', { count: 'exact', head: true })
+      .then(({ count }) => setPatientCount(count ?? 0))
     Promise.all([
       sb.from('dental_invoices').select('total,status').neq('status', 'void'),
       sb.from('dental_payments').select('amount'),
@@ -40,11 +45,21 @@ export default function Dashboard() {
       <div className="topbar">
         <div>
           <div className="page-title">Good morning 👋</div>
-          <div className="page-sub">{today} · here's how the practice looks</div>
+          <div className="page-sub">{today} · here's how {clinic.name} looks</div>
         </div>
         <Link to="/diary" className="btn">Open diary</Link>
       </div>
       <div className="content grid" style={{ gap: 18 }}>
+        {patientCount === 0 && (
+          <div className="card card-pad" style={{ borderLeft: '4px solid var(--teal)' }}>
+            <div className="card-title">Getting started — 3 steps and you're running</div>
+            <div className="grid" style={{ gap: 8 }}>
+              <div className="row"><span className="badge b-teal">1</span><span><Link to="/settings" style={{ fontWeight: 600, color: 'var(--teal-dark)' }}>Add your team</Link> — dentists and hygienists get their own login and diary column (Settings → Team).</span></div>
+              <div className="row"><span className="badge b-teal">2</span><span><Link to="/patients" style={{ fontWeight: 600, color: 'var(--teal-dark)' }}>Add your first patient</Link> — name and phone number is enough to start.</span></div>
+              <div className="row"><span className="badge b-teal">3</span><span><Link to="/diary" style={{ fontWeight: 600, color: 'var(--teal-dark)' }}>Book them in</Link> — click any empty slot in the diary.</span></div>
+            </div>
+          </div>
+        )}
         <div className="stats">
           <Stat label="Appointments today" value={appts.length} detail={`${seen} arrived or seen`} icon="🗓️" />
           <Stat label="Chair utilisation" value={appts.length ? `${Math.min(100, Math.round((appts.length / 14) * 100))}%` : '0%'} detail="of bookable slots" color="var(--violet-soft)" icon="🪥" />

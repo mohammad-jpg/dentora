@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { sb, fmtTime, fullName } from '../supabase.js'
 import { Modal, STATUS_META, useToast } from '../ui.jsx'
+import { useClinic } from '../clinic.jsx'
 
 const DAY_START = 8 // 08:00
 const DAY_END = 18 // 18:00
@@ -24,6 +25,7 @@ export default function Diary() {
   const [rota, setRota] = useState([])
   const [editing, setEditing] = useState(null) // appt object or {new: true, prac, h, m}
   const toast = useToast()
+  const { clinicId } = useClinic()
 
   useEffect(() => {
     sb.from('dental_practitioners').select('*').eq('active', true).order('name').then(({ data }) => setPracs(data || []))
@@ -57,6 +59,7 @@ export default function Diary() {
 
   const save = async (form) => {
     const payload = {
+      clinic_id: clinicId,
       patient_id: form.patient_id,
       practitioner_id: form.practitioner_id,
       starts_at: localISO(date, ...form.start.split(':').map(Number)),

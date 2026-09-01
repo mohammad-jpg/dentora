@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { sb, fmtDate, fullName, age } from '../supabase.js'
 import { Modal, useToast } from '../ui.jsx'
+import { useClinic } from '../clinic.jsx'
 
 const KIND_LABEL = {
   internal: 'In-house',
@@ -12,11 +13,11 @@ const KIND_LABEL = {
 const URGENCY_CLS = { routine: 'b-blue', urgent: 'b-amber', emergency: 'b-red' }
 const STATUS_CLS = { draft: 'b-gray', sent: 'b-blue', accepted: 'b-teal', completed: 'b-green' }
 
-function buildLetter({ patient, specialist, reason, urgency }) {
+function buildLetter({ patient, specialist, reason, urgency, clinic, signer }) {
   const today = new Date().toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' })
   const pAge = age(patient.dob)
-  return `Dentora Dublin
-12 Harcourt St, Dublin 2 · 01 555 0123 · hello@dentora.ie
+  return `${clinic.name}
+${[clinic.address, clinic.phone, clinic.email].filter(Boolean).join(' · ')}
 
 ${today}
 
@@ -40,14 +41,16 @@ Please do not hesitate to contact the practice for records or radiographs.
 
 Kind regards,
 
-Dr. Sarah Kelly
-Principal Dentist, Dentora Dublin`
+${signer}
+${clinic.name}`
 }
 
 export default function Referrals() {
+  const { clinic } = useClinic()
   const [referrals, setReferrals] = useState([])
   const [specialists, setSpecialists] = useState([])
   const [patients, setPatients] = useState([])
+  const [pracs, setPracs] = useState([])
   const [creating, setCreating] = useState(false)
   const [viewing, setViewing] = useState(null)
   const [showRegister, setShowRegister] = useState(false)
@@ -63,12 +66,13 @@ export default function Referrals() {
     load()
     sb.from('dental_specialists').select('*').order('kind').order('name').then(({ data }) => setSpecialists(data || []))
     sb.from('dental_patients').select('*').order('last_name').then(({ data }) => setPatients(data || []))
+    sb.from('dental_practitioners').select('name').order('name').then(({ data }) => setPracs(data || []))
   }, [])
 
   const create = async (form) => {
     const patient = patients.find((p) => p.id === form.patient_id)
     const specialist = specialists.find((s) => s.id === form.specialist_id)
-    const letter = buildLetter({ patient, specialist, reason: form.reason, urgency: form.urgency })
+    const letter = buildLetter({ patient, specialist, reason: form.reason, urgency: form.urgency, clinic, signer: pracs[0]?.name || clinic.name })
     const { data, error } = await sb.from('dental_referrals')
       .insert({ patient_id: form.patient_id, specialist_id: form.specialist_id, reason: form.reason, urgency: form.urgency, letter, status: 'draft' })
       .select('*, patient:dental_patients(id,first_name,last_name), specialist:dental_specialists(*)').single()

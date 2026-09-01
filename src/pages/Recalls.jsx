@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { sb, fmtDate, fullName } from '../supabase.js'
 import { useToast } from '../ui.jsx'
+import { useClinic } from '../clinic.jsx'
 
 export default function Recalls() {
+  const { clinic } = useClinic()
   const [recalls, setRecalls] = useState([])
   const toast = useToast()
 
@@ -15,7 +17,7 @@ export default function Recalls() {
   const remind = async (r) => {
     await sb.from('dental_comms_log').insert({
       patient_id: r.patient.id, channel: 'sms',
-      body: `Hi ${r.patient.first_name}, you're due your ${r.recall_type.toLowerCase()} at Dentora Dental. Book online: dentora.ie/book`,
+      body: `Hi ${r.patient.first_name}, you're due your ${r.recall_type.toLowerCase()} at ${clinic.name}. ${clinic.phone ? `Call ${clinic.phone} to book.` : ''}`,
     })
     await sb.from('dental_recalls').update({ status: 'contacted' }).eq('id', r.id)
     toast(`Reminder sent to ${fullName(r.patient)} (demo)`)

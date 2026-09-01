@@ -1,6 +1,7 @@
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from './ui.jsx'
 import { AuthProvider } from './auth.jsx'
+import { ClinicProvider, useClinic } from './clinic.jsx'
 import { sb } from './supabase.js'
 import Referrals from './pages/Referrals.jsx'
 import Handover from './pages/Handover.jsx'
@@ -56,6 +57,17 @@ export default function App() {
   return (
     <ToastProvider>
       <AuthProvider>
+        <ClinicProvider>
+          <Shell />
+        </ClinicProvider>
+      </AuthProvider>
+    </ToastProvider>
+  )
+}
+
+function Shell() {
+  const { clinic } = useClinic()
+  return (
       <div className="shell">
         <aside className="sidebar">
           <div className="logo">
@@ -71,7 +83,7 @@ export default function App() {
           </div>
           <Nav />
           <div className="sidebar-foot">
-            <b>Dentora Dublin</b>
+            <b>{clinic.name}</b>
             <br />
             <button
               onClick={() => sb.auth.signOut()}
@@ -96,7 +108,5 @@ export default function App() {
           </Routes>
         </div>
       </div>
-      </AuthProvider>
-    </ToastProvider>
   )
 }
