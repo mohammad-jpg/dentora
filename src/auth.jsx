@@ -35,11 +35,90 @@ function Logo({ sub }) {
 }
 
 function Login() {
-  const [mode, setMode] = useState('signin')
-  return mode === 'signin' ? <SignIn onSignup={() => setMode('signup')} /> : <SignupWizard onBack={() => setMode('signin')} />
+  const [mode, setMode] = useState('choose')
+  if (mode === 'staff') return <SignIn onSignup={() => setMode('staff-signup')} onHome={() => setMode('choose')} />
+  if (mode === 'staff-signup') return <SignupWizard onBack={() => setMode('staff')} />
+  if (mode === 'patient') return <PatientAuth onHome={() => setMode('choose')} />
+  return (
+    <div className="landing">
+      <Logo sub="Modern dental care" />
+      <h1>Your dentist, one tap away.</h1>
+      <p className="tag">Book check-ups, hygiene visits and video consultations online — or sign in to run your practice.</p>
+      <div className="doors">
+        <button className="door" onClick={() => setMode('patient')}>
+          <span className="emoji">😁</span>
+          <b>I'm a patient</b>
+          <p>Book an appointment or video consultation with your dentist in under a minute.</p>
+        </button>
+        <button className="door" onClick={() => setMode('staff')}>
+          <span className="emoji">🦷</span>
+          <b>Practice staff</b>
+          <p>Sign in to the diary, patient records and billing — or set up a new clinic.</p>
+        </button>
+      </div>
+    </div>
+  )
 }
 
-function SignIn({ onSignup }) {
+function PatientAuth({ onHome }) {
+  const [tab, setTab] = useState('signin')
+  const [f, setF] = useState({ full_name: '', phone: '', email: '', password: '' })
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const signIn = async () => {
+    setBusy(true); setErr('')
+    const { error } = await sb.auth.signInWithPassword({ email: f.email, password: f.password })
+    if (error) { setErr(error.message === 'Invalid login credentials' ? 'Wrong email or password.' : error.message); setBusy(false) }
+  }
+  const signUp = async () => {
+    setBusy(true); setErr('')
+    const { data, error } = await sb.functions.invoke('portal', { body: { action: 'signup', ...f } })
+    if (error || data?.error) {
+      let msg = data?.error || 'Something went wrong — please try again.'
+      if (error?.context) { try { msg = (await error.context.json())?.error || msg } catch { /* keep */ } }
+      setErr(msg); setBusy(false); return
+    }
+    await signIn()
+  }
+
+  const ok = tab === 'signin'
+    ? /.+@.+\..+/.test(f.email) && f.password
+    : f.full_name.trim() && /.+@.+\..+/.test(f.email) && f.password.length >= 8
+
+  return (
+    <div className="login-wrap">
+      <div className="login-card">
+        <Logo sub="Patient portal" />
+        <div className="tabs" style={{ marginBottom: 16 }}>
+          <button className={tab === 'signin' ? 'active' : ''} onClick={() => setTab('signin')}>Sign in</button>
+          <button className={tab === 'signup' ? 'active' : ''} onClick={() => setTab('signup')}>Create account</button>
+        </div>
+        <div className="grid" style={{ gap: 12 }}>
+          {tab === 'signup' && (
+            <>
+              <div><label className="field">Your name</label><input className="input" value={f.full_name} onChange={set('full_name')} autoFocus /></div>
+              <div><label className="field">Mobile number</label><input className="input" value={f.phone} onChange={set('phone')} placeholder="08x xxx xxxx" /></div>
+            </>
+          )}
+          <div><label className="field">Email</label><input className="input" type="email" value={f.email} onChange={set('email')} autoComplete="username" /></div>
+          <div><label className="field">Password{tab === 'signup' ? ' (8+ characters)' : ''}</label>
+            <input className="input" type="password" value={f.password} onChange={set('password')} autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
+              onKeyDown={(e) => e.key === 'Enter' && ok && (tab === 'signin' ? signIn() : signUp())} /></div>
+        </div>
+        {err && <div className="small" style={{ color: 'var(--red)', marginTop: 10 }}>{err}</div>}
+        <button className="btn" style={{ width: '100%', marginTop: 16, justifyContent: 'center' }} disabled={!ok || busy}
+          onClick={tab === 'signin' ? signIn : signUp}>
+          {busy ? 'One moment…' : tab === 'signin' ? 'Sign in' : 'Create account'}
+        </button>
+        <button className="btn ghost" style={{ width: '100%', marginTop: 6, justifyContent: 'center' }} onClick={onHome}>← Back</button>
+      </div>
+    </div>
+  )
+}
+
+function SignIn({ onSignup, onHome }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
@@ -69,6 +148,7 @@ function SignIn({ onSignup }) {
         <button type="button" className="btn ghost" style={{ width: '100%', marginTop: 8, justifyContent: 'center' }} onClick={onSignup}>
           New here? Set up your clinic →
         </button>
+        <button type="button" className="btn ghost" style={{ width: '100%', marginTop: 2, justifyContent: 'center', color: 'var(--ink-40)' }} onClick={onHome}>← Back</button>
         <div className="small muted" style={{ marginTop: 12, textAlign: 'center' }}>
           Patient data is protected — staff accounts only.
         </div>

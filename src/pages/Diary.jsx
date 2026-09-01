@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { sb, fmtTime, fullName } from '../supabase.js'
 import { Modal, STATUS_META, useToast } from '../ui.jsx'
 import { useClinic } from '../clinic.jsx'
@@ -28,7 +29,7 @@ export default function Diary() {
   const { clinicId } = useClinic()
 
   useEffect(() => {
-    sb.from('dental_practitioners').select('*').eq('active', true).order('name').then(({ data }) => setPracs(data || []))
+    sb.from('dental_practitioners').select('*').eq('clinic_id', clinicId).eq('active', true).order('name').then(({ data }) => setPracs(data || []))
     sb.from('dental_patients').select('id,first_name,last_name').order('last_name').then(({ data }) => setPatients(data || []))
     sb.from('dental_rota').select('*').then(({ data }) => setRota(data || []))
   }, [])
@@ -221,6 +222,11 @@ function ApptModal({ appt, patients, pracs, onSave, onDelete, onClose }) {
           <input className="input" value={form.reason} onChange={set('reason')} placeholder="e.g. Exam + scale & polish" />
         </div>
       </div>
+      {appt.id && /^\[Video\]/.test(appt.reason || '') && (
+        <Link to={`/video/${appt.id}`} className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 16, background: 'var(--violet)' }}>
+          📹 Join video consultation
+        </Link>
+      )}
       <div className="actions">
         {onDelete && <button className="btn danger" onClick={onDelete} style={{ marginRight: 'auto' }}>Delete</button>}
         <button className="btn secondary" onClick={onClose}>Cancel</button>

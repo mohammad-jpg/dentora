@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { sb, fmtDate, fullName } from '../supabase.js'
 import { useToast } from '../ui.jsx'
+import { useClinic } from '../clinic.jsx'
 
 // Digital version of the paper "Patient Routing Slip" — completed by the nurse/hygienist
 // before handover to the front desk, then processed by reception.
@@ -42,6 +43,7 @@ export default function Handover() {
   const [pracs, setPracs] = useState([])
   const [editing, setEditing] = useState(null) // slip row being edited/created
   const toast = useToast()
+  const { clinicId } = useClinic()
 
   const load = () =>
     sb.from('dental_routing_slips')
@@ -52,7 +54,7 @@ export default function Handover() {
   useEffect(() => {
     load()
     sb.from('dental_patients').select('id,first_name,last_name').order('last_name').then(({ data }) => setPatients(data || []))
-    sb.from('dental_practitioners').select('id,name').order('name').then(({ data }) => setPracs(data || []))
+    sb.from('dental_practitioners').select('id,name').eq('clinic_id', clinicId).order('name').then(({ data }) => setPracs(data || []))
   }, [])
 
   const startNew = () =>

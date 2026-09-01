@@ -16,7 +16,7 @@ export default function Tasks() {
     sb.from('dental_tasks').select('*').order('done').order('due_date').then(({ data }) => setTasks(data || []))
   useEffect(() => {
     load()
-    sb.from('dental_practitioners').select('name').order('name').then(({ data }) => setTeam((data || []).map((p) => p.name)))
+    sb.from('dental_practitioners').select('name').eq('clinic_id', clinicId).order('name').then(({ data }) => setTeam((data || []).map((p) => p.name)))
   }, [])
 
   const add = async () => {

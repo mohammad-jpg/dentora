@@ -66,7 +66,7 @@ export default function Referrals() {
     load()
     sb.from('dental_specialists').select('*').order('kind').order('name').then(({ data }) => setSpecialists(data || []))
     sb.from('dental_patients').select('*').order('last_name').then(({ data }) => setPatients(data || []))
-    sb.from('dental_practitioners').select('name').order('name').then(({ data }) => setPracs(data || []))
+    sb.from('dental_practitioners').select('name').eq('clinic_id', clinic.id).order('name').then(({ data }) => setPracs(data || []))
   }, [])
 
   const create = async (form) => {

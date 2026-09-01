@@ -16,7 +16,7 @@ export default function Settings() {
 
   const load = () => {
     sb.from('dental_treatments').select('*').order('category').order('name').then(({ data }) => setTreatments(data || []))
-    sb.from('dental_practitioners').select('*').order('name').then(({ data }) => setPracs(data || []))
+    sb.from('dental_practitioners').select('*').eq('clinic_id', clinicId).order('name').then(({ data }) => setPracs(data || []))
     sb.from('dental_surgeries').select('*').order('sort').then(({ data }) => setSurgeries(data || []))
     sb.from('dental_memberships').select('*').eq('clinic_id', clinicId).then(({ data }) => setMembers(data || []))
   }

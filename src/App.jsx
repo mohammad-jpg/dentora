@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from './ui.jsx'
 import { AuthProvider } from './auth.jsx'
@@ -5,6 +6,8 @@ import { ClinicProvider, useClinic } from './clinic.jsx'
 import { sb } from './supabase.js'
 import Referrals from './pages/Referrals.jsx'
 import Handover from './pages/Handover.jsx'
+import Portal from './pages/Portal.jsx'
+import VideoCall from './pages/VideoCall.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Diary from './pages/Diary.jsx'
 import Patients from './pages/Patients.jsx'
@@ -57,11 +60,25 @@ export default function App() {
   return (
     <ToastProvider>
       <AuthProvider>
-        <ClinicProvider>
-          <Shell />
-        </ClinicProvider>
+        <SurfaceRouter />
       </AuthProvider>
     </ToastProvider>
+  )
+}
+
+// Staff accounts (clinic membership) get the practice app; everyone else gets the patient portal.
+function SurfaceRouter() {
+  const [surface, setSurface] = useState(null)
+  useEffect(() => {
+    sb.from('dental_memberships').select('id').limit(1)
+      .then(({ data }) => setSurface(data?.length ? 'staff' : 'portal'))
+  }, [])
+  if (!surface) return <div className="login-wrap"><div className="muted">Loading…</div></div>
+  if (surface === 'portal') return <Portal />
+  return (
+    <ClinicProvider>
+      <Shell />
+    </ClinicProvider>
   )
 }
 
@@ -102,6 +119,7 @@ function Shell() {
             <Route path="/recalls" element={<Recalls />} />
             <Route path="/referrals" element={<Referrals />} />
             <Route path="/handover" element={<Handover />} />
+            <Route path="/video/:id" element={<VideoCall staff />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />
