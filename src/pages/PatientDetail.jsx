@@ -6,7 +6,7 @@ import Odontogram, { CONDITIONS } from '../Odontogram.jsx'
 import { PatientModal } from './Patients.jsx'
 import { useClinic } from '../clinic.jsx'
 
-const TABS = ['Overview', 'Dental chart', 'Treatment plans', 'Billing', 'Imaging', 'Comms']
+const TABS = ['Overview', 'Dental chart', 'Notes', 'Treatment plans', 'Billing', 'Imaging', 'Comms']
 
 export const SCHEME_META = {
   private: { label: 'Private', cls: 'b-gray' },
@@ -61,6 +61,7 @@ export default function PatientDetail() {
         </div>
         {tab === 'Overview' && <Overview p={p} />}
         {tab === 'Dental chart' && <ChartTab patientId={id} />}
+        {tab === 'Notes' && <NotesTab patientId={id} />}
         {tab === 'Treatment plans' && <PlansTab patientId={id} />}
         {tab === 'Billing' && <BillingTab patientId={id} />}
         {tab === 'Imaging' && <ImagingTab patientId={id} />}
@@ -119,6 +120,7 @@ function Overview({ p }) {
 function ChartTab({ patientId }) {
   const [entries, setEntries] = useState([])
   const [tooth, setTooth] = useState(null)
+  const [dentition, setDentition] = useState('adult')
   const [form, setForm] = useState({ condition: 'caries', surface: '', status: 'planned', note: '' })
   const toast = useToast()
 
@@ -149,8 +151,14 @@ function ChartTab({ patientId }) {
   return (
     <div className="grid" style={{ gridTemplateColumns: '1.7fr 1fr' }}>
       <div className="card card-pad">
-        <div className="card-title">Dental chart (FDI)</div>
-        <Odontogram entries={entries} selectedTooth={tooth} onSelect={setTooth} />
+        <div className="card-title">
+          Dental chart {dentition === 'adult' ? '(FDI)' : '(primary — ABCDE)'}
+          <span className="row" style={{ gap: 4 }}>
+            <button className={`btn sm ${dentition === 'adult' ? '' : 'secondary'}`} onClick={() => { setDentition('adult'); setTooth(null) }}>Adult</button>
+            <button className={`btn sm ${dentition === 'primary' ? '' : 'secondary'}`} onClick={() => { setDentition('primary'); setTooth(null) }}>Baby teeth</button>
+          </span>
+        </div>
+        <Odontogram entries={entries} selectedTooth={tooth} onSelect={setTooth} dentition={dentition} />
       </div>
       <div className="card card-pad">
         <div className="card-title">{tooth ? `Tooth ${tooth}` : 'Select a tooth'}</div>
@@ -180,9 +188,9 @@ function ChartTab({ patientId }) {
                   </select>
                 </div>
                 <div>
-                  <label className="field">Surfaces (M O D B L)</label>
-                  <input className="input" value={form.surface} placeholder="e.g. MO — blank = whole tooth"
-                    onChange={(e) => setForm((f) => ({ ...f, surface: e.target.value.toUpperCase().replace(/[^MODBL]/g, '') }))} />
+                  <label className="field">Surfaces (M O D B L + R = root)</label>
+                  <input className="input" value={form.surface} placeholder="e.g. MO, R — blank = whole tooth"
+                    onChange={(e) => setForm((f) => ({ ...f, surface: e.target.value.toUpperCase().replace(/[^MODBLR]/g, '') }))} />
                 </div>
                 <div>
                   <label className="field">Status</label>
@@ -374,10 +382,135 @@ function BillingTab({ patientId }) {
   )
 }
 
+function NotesTab({ patientId }) {
+  const { clinic, clinicId } = useClinic()
+  const [notes, setNotes] = useState([])
+  const [templates, setTemplates] = useState([])
+  const [pracs, setPracs] = useState([])
+  const [body, setBody] = useState('')
+  const [author, setAuthor] = useState('')
+  const [listening, setListening] = useState(false)
+  const [rec, setRec] = useState(null)
+  const toast = useToast()
+
+  const load = () =>
+    sb.from('dental_clinical_notes').select('*').eq('patient_id', patientId).order('created_at', { ascending: false })
+      .then(({ data }) => setNotes(data || []))
+  useEffect(() => {
+    load()
+    sb.from('dental_note_templates').select('*').eq('clinic_id', clinicId).order('name').then(({ data }) => setTemplates(data || []))
+    sb.from('dental_practitioners').select('name').eq('clinic_id', clinicId).order('name')
+      .then(({ data }) => { setPracs(data || []); if (data?.[0]) setAuthor(data[0].name) })
+  }, [patientId, clinicId])
+
+  const save = async () => {
+    if (!body.trim()) return
+    const { error } = await sb.from('dental_clinical_notes').insert({ patient_id: patientId, author, body: body.trim() })
+    if (error) return toast('Error: ' + error.message)
+    toast('Note saved')
+    setBody('')
+    load()
+  }
+
+  const insertTemplate = (id) => {
+    const t = templates.find((x) => x.id === id)
+    if (t) setBody((b) => (b ? b + '\n\n' : '') + t.body)
+  }
+
+  const toggleDictation = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return toast('Dictation needs Chrome or Edge (speech recognition unsupported here).')
+    if (listening) { rec?.stop(); setListening(false); return }
+    const r = new SR()
+    r.lang = 'en-IE'
+    r.continuous = true
+    r.interimResults = false
+    r.onresult = (e) => {
+      let text = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) text += e.results[i][0].transcript
+      if (text) setBody((b) => (b ? b + ' ' : '') + text.trim())
+    }
+    r.onend = () => setListening(false)
+    r.onerror = () => { setListening(false); toast('Dictation stopped — check the microphone permission.') }
+    r.start()
+    setRec(r)
+    setListening(true)
+  }
+
+  return (
+    <div className="grid" style={{ gridTemplateColumns: '1fr 1.2fr', alignItems: 'start' }}>
+      <div className="card card-pad">
+        <div className="card-title">New clinical note</div>
+        <div className="grid" style={{ gap: 10 }}>
+          <div className="row">
+            <select className="input" value={author} onChange={(e) => setAuthor(e.target.value)}>
+              {pracs.map((p) => <option key={p.name}>{p.name}</option>)}
+              <option>Reception</option>
+            </select>
+            <select className="input" value="" onChange={(e) => { if (e.target.value) insertTemplate(e.target.value) }}>
+              <option value="">Insert template…</option>
+              {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <textarea className="input" rows={10} value={body} onChange={(e) => setBody(e.target.value)}
+            placeholder="Type, insert a template, or hit Dictate and talk…" style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }} />
+          <div className="row">
+            <button className={`btn ${listening ? 'danger' : 'secondary'}`} onClick={toggleDictation}>
+              {listening ? '■ Stop dictating' : '🎤 Dictate'}
+            </button>
+            <button className="btn" style={{ flex: 1, justifyContent: 'center' }} disabled={!body.trim()} onClick={save}>Save note</button>
+          </div>
+          <p className="small muted">Templates are managed in Settings. Dictation uses the browser's speech engine (Chrome/Edge) — free, nothing leaves {clinic.name} unlogged.</p>
+        </div>
+      </div>
+      <div className="card card-pad">
+        <div className="card-title">Notes history</div>
+        <div className="grid" style={{ gap: 10 }}>
+          {notes.map((n) => (
+            <div key={n.id} style={{ padding: '10px 12px', background: 'var(--mint-bg)', borderRadius: 10 }}>
+              <div className="spread small" style={{ marginBottom: 4 }}>
+                <b>{n.author || 'Unknown'}</b>
+                <span className="muted mono">{fmtDate(n.created_at)} {fmtTime(n.created_at)}</span>
+              </div>
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{n.body}</div>
+            </div>
+          ))}
+          {notes.length === 0 && <div className="empty">No notes yet.</div>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const REF_KINDS = { xray: '🩻 X-ray', cbct: '🧠 CBCT (3D)', scan3d: '🦷 3D scan', photo: '📷 Photos', other: '📁 Other' }
+
 function ImagingTab({ patientId }) {
   const [files, setFiles] = useState([])
+  const [refs, setRefs] = useState([])
+  const [refForm, setRefForm] = useState({ kind: 'cbct', label: '', location: '', taken_on: '', note: '' })
   const [busy, setBusy] = useState(false)
   const toast = useToast()
+
+  const loadRefs = () =>
+    sb.from('dental_imaging_refs').select('*').eq('patient_id', patientId).order('created_at', { ascending: false })
+      .then(({ data }) => setRefs(data || []))
+  useEffect(() => { loadRefs() }, [patientId])
+
+  const addRef = async () => {
+    if (!refForm.label.trim()) return
+    const { error } = await sb.from('dental_imaging_refs').insert({
+      patient_id: patientId, kind: refForm.kind, label: refForm.label.trim(),
+      location: refForm.location || null, taken_on: refForm.taken_on || null, note: refForm.note || null,
+    })
+    if (error) return toast('Error: ' + error.message)
+    toast('Study logged')
+    setRefForm({ kind: 'cbct', label: '', location: '', taken_on: '', note: '' })
+    loadRefs()
+  }
+  const delRef = async (r) => {
+    await sb.from('dental_imaging_refs').delete().eq('id', r.id)
+    loadRefs()
+  }
 
   const load = () =>
     sb.storage.from('dental-files').list(patientId, { sortBy: { column: 'created_at', order: 'desc' } })
@@ -413,14 +546,13 @@ function ImagingTab({ patientId }) {
   return (
     <div className="grid" style={{ gap: 16 }}>
       <div className="card card-pad">
-        <div className="card-title">X-rays, scans & documents</div>
+        <div className="card-title">Files & documents</div>
         <div className="row" style={{ marginBottom: 8 }}>
           <label className="btn secondary" style={{ cursor: 'pointer' }}>
             {busy ? 'Uploading…' : '⬆ Attach file'}
-            <input type="file" style={{ display: 'none' }} onChange={upload} disabled={busy}
-              accept="image/*,.pdf,.dcm,.stl,.ply,.zip" />
+            <input type="file" style={{ display: 'none' }} onChange={upload} disabled={busy} />
           </label>
-          <span className="small muted">X-ray exports, intra-oral photos, scanner files (STL/PLY), PDFs — stored encrypted in Supabase.</span>
+          <span className="small muted">X-ray exports, photos, STL/PLY, PDFs, patient emails, consent forms, referral replies — anything on the record, stored encrypted.</span>
         </div>
         <table className="tbl">
           <tbody>
@@ -441,9 +573,54 @@ function ImagingTab({ patientId }) {
           </tbody>
         </table>
       </div>
+      <div className="card card-pad">
+        <div className="card-title">Large studies — CBCT, 3D scans, full X-ray sets</div>
+        <p className="small muted" style={{ marginBottom: 12 }}>
+          Multi-GB studies stay in your imaging program — log them here so everyone knows they exist and where to open them.
+        </p>
+        <div className="grid" style={{ gap: 10, marginBottom: 14 }}>
+          {refs.map((r) => (
+            <div key={r.id} className="spread" style={{ padding: '10px 12px', background: 'var(--mint-bg)', borderRadius: 10 }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>{REF_KINDS[r.kind] || r.kind} — {r.label}</div>
+                <div className="small muted">
+                  {r.location ? `Open in: ${r.location}` : ''}{r.taken_on ? ` · taken ${fmtDate(r.taken_on)}` : ''}
+                </div>
+                {r.note && <div className="small muted">{r.note}</div>}
+              </div>
+              <button className="btn ghost sm" onClick={() => delRef(r)}>✕</button>
+            </div>
+          ))}
+          {refs.length === 0 && <div className="small muted">No external studies logged.</div>}
+        </div>
+        <div className="form-grid">
+          <div>
+            <label className="field">Type</label>
+            <select className="input" value={refForm.kind} onChange={(e) => setRefForm((f) => ({ ...f, kind: e.target.value }))}>
+              {Object.entries(REF_KINDS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="field">Label</label>
+            <input className="input" value={refForm.label} placeholder="e.g. CBCT upper arch pre-implant"
+              onChange={(e) => setRefForm((f) => ({ ...f, label: e.target.value }))} />
+          </div>
+          <div>
+            <label className="field">Where it lives (program / drive)</label>
+            <input className="input" value={refForm.location} placeholder="e.g. Romexis — Surgery 2 PC"
+              onChange={(e) => setRefForm((f) => ({ ...f, location: e.target.value }))} />
+          </div>
+          <div>
+            <label className="field">Taken on</label>
+            <input type="date" className="input" value={refForm.taken_on}
+              onChange={(e) => setRefForm((f) => ({ ...f, taken_on: e.target.value }))} />
+          </div>
+        </div>
+        <button className="btn" style={{ marginTop: 10 }} disabled={!refForm.label.trim()} onClick={addRef}>Log study</button>
+      </div>
       <p className="small muted" style={{ maxWidth: 680 }}>
         Direct sensor integration (Romexis, Sidexis, Dexis, CS Imaging; iTero / 3Shape / Medit scanners) uses proprietary
-        bridges — the practical workflow is: capture in the vendor's viewer, export, attach here so the full record lives with the patient.
+        bridges — the practical workflow is: capture in the vendor's viewer, export or log here, so the full record lives with the patient.
       </p>
     </div>
   )

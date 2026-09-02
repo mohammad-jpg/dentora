@@ -38,8 +38,22 @@ export default function Recalls() {
           <div className="page-title">Recalls</div>
           <div className="page-sub">{recalls.filter((r) => r.status === 'due').length} patients due · automated reminders keep the chairs full</div>
         </div>
+        <button className="btn" onClick={async () => {
+          const { data, error } = await sb.functions.invoke('recall-engine', { body: {} })
+          if (error || data?.error) return toast(data?.error || 'Automation run failed.')
+          toast(`Automation ran — ${data.processed} reminder(s) sent (${data.mode} mode)`)
+          load()
+        }}>▶ Run automation now</button>
       </div>
       <div className="content">
+        <div className="card card-pad" style={{ borderLeft: '4px solid var(--teal)', marginBottom: 16 }}>
+          <b style={{ fontFamily: 'var(--font-display)', fontSize: 14 }}>Automatic recalls are on</b>
+          <p className="small muted" style={{ marginTop: 4 }}>
+            Every morning at 8am, Dentora texts everyone due in the next 7 days (and anyone overdue) with your online
+            booking link, and marks them contacted — when they book themselves in, it lands straight in your diary.
+            Currently in demo mode (messages logged, not transmitted); add a Twilio number to go live.
+          </p>
+        </div>
         <div className="card">
           <table className="tbl">
             <thead><tr><th>Patient</th><th>Recall type</th><th>Due</th><th>Status</th><th /></tr></thead>

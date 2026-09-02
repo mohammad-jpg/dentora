@@ -7,6 +7,7 @@ import { sb } from './supabase.js'
 import Referrals from './pages/Referrals.jsx'
 import Handover from './pages/Handover.jsx'
 import Portal from './pages/Portal.jsx'
+import CheckIn from './pages/CheckIn.jsx'
 import VideoCall from './pages/VideoCall.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Diary from './pages/Diary.jsx'
@@ -40,6 +41,7 @@ function Nav() {
     ['/recalls', 'Recalls', I.bell],
     ['/referrals', 'Referrals', I.send],
     ['/handover', 'Handover', I.clip],
+    ['/checkin', 'Check-in', I.people],
     ['/tasks', 'Tasks', I.check],
     ['/reports', 'Reports', I.chart],
     ['/settings', 'Settings', I.cog],
@@ -120,6 +122,7 @@ function Shell() {
             <Route path="/referrals" element={<Referrals />} />
             <Route path="/handover" element={<Handover />} />
             <Route path="/video/:id" element={<VideoCall staff />} />
+            <Route path="/checkin" element={<CheckIn />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />

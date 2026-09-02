@@ -114,6 +114,8 @@ export default function Settings() {
               </div>
             </div>
 
+            <TemplatesCard clinicId={clinicId} />
+
             <div className="card card-pad">
               <div className="card-title">Clinicians</div>
               <div className="grid" style={{ gap: 10 }}>
@@ -154,6 +156,68 @@ export default function Settings() {
       </div>
       {inviting && <InviteModal onSave={invite} onClose={() => setInviting(false)} />}
     </>
+  )
+}
+
+function TemplatesCard({ clinicId }) {
+  const [templates, setTemplates] = useState([])
+  const [editing, setEditing] = useState(null) // {id?, name, body}
+  const toast = useToast()
+  const load = () =>
+    sb.from('dental_note_templates').select('*').eq('clinic_id', clinicId).order('name').then(({ data }) => setTemplates(data || []))
+  useEffect(() => { load() }, [clinicId])
+
+  const save = async () => {
+    if (!editing.name.trim() || !editing.body.trim()) return
+    const payload = { name: editing.name.trim(), body: editing.body }
+    const q = editing.id
+      ? sb.from('dental_note_templates').update(payload).eq('id', editing.id)
+      : sb.from('dental_note_templates').insert({ ...payload, clinic_id: clinicId })
+    const { error } = await q
+    if (error) return toast('Error: ' + error.message)
+    toast('Template saved')
+    setEditing(null)
+    load()
+  }
+  const del = async (t) => {
+    await sb.from('dental_note_templates').delete().eq('id', t.id)
+    load()
+  }
+
+  return (
+    <div className="card card-pad">
+      <div className="card-title">
+        Note templates
+        <button className="btn sm" onClick={() => setEditing({ name: '', body: '' })}>+ New</button>
+      </div>
+      <div className="grid" style={{ gap: 8 }}>
+        {templates.map((t) => (
+          <div key={t.id} className="spread" style={{ padding: '8px 12px', background: 'var(--mint-bg)', borderRadius: 10 }}>
+            <span style={{ fontWeight: 600, fontSize: 13.5 }}>{t.name}</span>
+            <span className="row">
+              <button className="btn ghost sm" onClick={() => setEditing({ ...t })}>Edit</button>
+              <button className="btn ghost sm" onClick={() => del(t)}>✕</button>
+            </span>
+          </div>
+        ))}
+        {templates.length === 0 && <div className="small muted">No templates yet.</div>}
+      </div>
+      {editing && (
+        <Modal title={editing.id ? 'Edit template' : 'New note template'} onClose={() => setEditing(null)}>
+          <div className="grid" style={{ gap: 12 }}>
+            <div><label className="field">Name</label>
+              <input className="input" value={editing.name} onChange={(e) => setEditing((x) => ({ ...x, name: e.target.value }))} placeholder="e.g. Crown prep" /></div>
+            <div><label className="field">Note body (use ___ for blanks to fill)</label>
+              <textarea className="input" rows={9} value={editing.body} onChange={(e) => setEditing((x) => ({ ...x, body: e.target.value }))}
+                style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }} /></div>
+          </div>
+          <div className="actions">
+            <button className="btn secondary" onClick={() => setEditing(null)}>Cancel</button>
+            <button className="btn" onClick={save}>Save template</button>
+          </div>
+        </Modal>
+      )}
+    </div>
   )
 }
 
