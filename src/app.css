@@ -290,9 +290,49 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .day-chip b { display: block; font-family: var(--font-display); font-size: 16px; }
 .day-chip span { font-size: 10.5px; color: var(--ink-40); text-transform: uppercase; font-weight: 700; }
 .video-frame { width: 100%; height: min(72vh, 640px); border: none; border-radius: 16px; background: #0B2027; }
-@media (max-width: 700px) {
-  .content { padding: 16px 12px 40px; }
-  .stats { grid-template-columns: 1fr 1fr; }
+
+/* ---------- Mobile ---------- */
+.mobile-head { display: none; }
+.burger {
+  background: none; border: none; color: #fff; padding: 6px; display: grid; place-items: center;
+  border-radius: 8px;
+}
+.burger:active { background: rgba(255,255,255,0.12); }
+.nav-scrim { position: fixed; inset: 0; background: rgba(11,32,39,0.55); z-index: 190; }
+
+@media (max-width: 860px) {
+  .shell { flex-direction: column; height: auto; min-height: 100vh; }
+  .sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; width: 264px; z-index: 200;
+    transform: translateX(-102%); transition: transform 0.22s ease;
+    box-shadow: 0 0 40px rgba(0,0,0,0.35); overflow-y: auto;
+  }
+  .sidebar.open { transform: none; }
+  .mobile-head {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    background: var(--ink); color: #fff; position: sticky; top: 0; z-index: 100;
+  }
+  .main { overflow: visible; }
+  .topbar { flex-wrap: wrap; gap: 10px; padding: 12px 14px; position: static; }
+  .topbar .row { flex-wrap: wrap; }
+  .page-title { font-size: 18px; }
+  .content { padding: 14px 12px 48px; }
+  .grid { grid-template-columns: 1fr !important; }
+  .form-grid { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: 1fr 1fr !important; }
+  .card { max-width: 100%; }
+  .tablewrap, .card:has(> table), .card:has(.tbl) { overflow-x: auto; }
+  .tbl { min-width: 560px; }
+  .tabs { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; scrollbar-width: none; }
+  .odo { overflow-x: auto; align-items: flex-start; max-width: 100%; padding-bottom: 6px; }
+  .odo-legend { justify-content: flex-start; }
+  .rota-wrap { overflow-x: auto; }
+  .rota-grid { min-width: 620px; }
+  .modal { max-height: 92vh; padding: 18px; }
+  .btn { padding: 10px 14px; }
+  .portal-main { padding: 18px 12px 60px; }
+  .appt-card { flex-wrap: wrap; }
+  .video-frame { height: 60vh; }
 }
 .toast {
   position: fixed; bottom: 24px; right: 24px; z-index: 200; background: var(--ink); color: #fff;

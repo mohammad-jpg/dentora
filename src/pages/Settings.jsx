@@ -293,6 +293,7 @@ function RotaCard({ pracs, surgeries }) {
   return (
     <div className="card card-pad">
       <div className="card-title">Rota <span className="small muted" style={{ fontWeight: 400 }}>click a cell to change surgery / off / leave</span></div>
+      <div className="rota-wrap">
       <div className="rota-grid">
         <div />
         {DAYS.map((d) => <div key={d} className="small muted" style={{ textAlign: 'center', fontWeight: 700 }}>{d}</div>)}
@@ -309,6 +310,7 @@ function RotaCard({ pracs, surgeries }) {
               )
             })]
         ))}
+      </div>
       </div>
     </div>
   )

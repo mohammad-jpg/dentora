@@ -32,7 +32,7 @@ const I = {
   clip: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4a3 3 0 0 1 6 0M9 11h6M9 15h6"/></svg>,
 }
 
-function Nav() {
+function Nav({ onNavigate }) {
   const links = [
     ['/', 'Dashboard', I.home],
     ['/diary', 'Diary', I.cal],
@@ -49,7 +49,7 @@ function Nav() {
   return (
     <nav className="nav">
       {links.map(([to, label, icon]) => (
-        <NavLink key={to} to={to} end={to === '/'}>
+        <NavLink key={to} to={to} end={to === '/'} onClick={onNavigate}>
           {icon}
           {label}
         </NavLink>
@@ -86,9 +86,10 @@ function SurfaceRouter() {
 
 function Shell() {
   const { clinic } = useClinic()
+  const [navOpen, setNavOpen] = useState(false)
   return (
       <div className="shell">
-        <aside className="sidebar">
+        <aside className={`sidebar ${navOpen ? 'open' : ''}`}>
           <div className="logo">
             <div className="logo-mark">
               <svg width="22" height="22" viewBox="0 0 64 64">
@@ -100,7 +101,7 @@ function Shell() {
               <div className="logo-sub">Practice OS</div>
             </div>
           </div>
-          <Nav />
+          <Nav onNavigate={() => setNavOpen(false)} />
           <div className="sidebar-foot">
             <b>{clinic.name}</b>
             <br />
@@ -111,7 +112,19 @@ function Shell() {
             </button>
           </div>
         </aside>
+        {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} />}
         <div className="main">
+          <div className="mobile-head">
+            <button className="burger" onClick={() => setNavOpen(true)} aria-label="Open menu">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
+            <div className="logo-mark" style={{ width: 28, height: 28, borderRadius: 8 }}>
+              <svg width="15" height="15" viewBox="0 0 64 64">
+                <path d="M22 16c-5 0-8 4.5-8 10 0 8 4 12 5.5 19 .8 3.8 1.5 6 3.5 6s2.6-2.5 3-6c.5-4 1.6-7 6-7s5.5 3 6 7c.4 3.5 1 6 3 6s2.7-2.2 3.5-6C46 38 50 34 50 26c0-5.5-3-10-8-10-4 0-5.5 2-10 2s-6-2-10-2z" fill="#fff" />
+              </svg>
+            </div>
+            <b style={{ fontFamily: 'var(--font-display)', fontSize: 15 }}>{clinic.name}</b>
+          </div>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/diary" element={<Diary />} />
