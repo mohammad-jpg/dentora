@@ -222,7 +222,7 @@ function TemplatesCard({ clinicId }) {
 }
 
 function PracticeCard({ clinic, onSave }) {
-  const [f, setF] = useState({ name: clinic.name, address: clinic.address || '', phone: clinic.phone || '', email: clinic.email || '', opening_hours: clinic.opening_hours || '' })
+  const [f, setF] = useState({ name: clinic.name, address: clinic.address || '', phone: clinic.phone || '', email: clinic.email || '', opening_hours: clinic.opening_hours || '', imaging_software: clinic.imaging_software || 'none' })
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
   return (
     <div className="card card-pad">
@@ -236,6 +236,18 @@ function PracticeCard({ clinic, onSave }) {
         <div><label className="field">Phone</label><input className="input" value={f.phone} onChange={set('phone')} /></div>
         <div><label className="field">Email</label><input className="input" value={f.email} onChange={set('email')} /></div>
         <div><label className="field">Opening hours</label><input className="input" value={f.opening_hours} onChange={set('opening_hours')} /></div>
+        <div>
+          <label className="field">Imaging software (for "Open in…" buttons)</label>
+          <select className="input" value={f.imaging_software} onChange={set('imaging_software')}>
+            <option value="none">None / not set up</option>
+            <option value="romexis">Planmeca Romexis</option>
+            <option value="csimaging">Carestream CS Imaging</option>
+          </select>
+          <p className="small muted" style={{ marginTop: 6 }}>
+            Needs the free <a href="https://github.com/mohammad-jpg/dentora/tree/main/bridge" target="_blank" rel="noreferrer" style={{ color: 'var(--teal)', fontWeight: 600 }}>Dentora Imaging Bridge</a> installed
+            once on each surgery PC (2-minute setup).
+          </p>
+        </div>
       </div>
     </div>
   )

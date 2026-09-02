@@ -64,7 +64,7 @@ export default function PatientDetail() {
         {tab === 'Notes' && <NotesTab patientId={id} />}
         {tab === 'Treatment plans' && <PlansTab patientId={id} />}
         {tab === 'Billing' && <BillingTab patientId={id} />}
-        {tab === 'Imaging' && <ImagingTab patientId={id} />}
+        {tab === 'Imaging' && <ImagingTab patientId={id} patient={p} />}
         {tab === 'Comms' && <CommsTab patientId={id} patient={p} />}
       </div>
       {editing && <PatientModal patient={p} onSave={saveEdit} onClose={() => setEditing(false)} />}
@@ -501,8 +501,19 @@ function NotesTab({ patientId }) {
 }
 
 const REF_KINDS = { xray: '🩻 X-ray', cbct: '🧠 CBCT (3D)', scan3d: '🦷 3D scan', photo: '📷 Photos', other: '📁 Other' }
+const IMAGING_LABELS = { romexis: 'Romexis', csimaging: 'CS Imaging' }
 
-function ImagingTab({ patientId }) {
+function ImagingTab({ patientId, patient }) {
+  const { clinic } = useClinic()
+  const imaging = clinic.imaging_software && clinic.imaging_software !== 'none' ? clinic.imaging_software : null
+
+  const openInImaging = () => {
+    const params = new URLSearchParams({
+      vendor: imaging, pid: patientId,
+      first: patient?.first_name || '', last: patient?.last_name || '', dob: patient?.dob || '',
+    })
+    window.location.href = `dentora://open?${params.toString()}`
+  }
   const [files, setFiles] = useState([])
   const [refs, setRefs] = useState([])
   const [refForm, setRefForm] = useState({ kind: 'cbct', label: '', location: '', taken_on: '', note: '' })
@@ -569,7 +580,14 @@ function ImagingTab({ patientId }) {
   return (
     <div className="grid" style={{ gap: 16 }}>
       <div className="card card-pad">
-        <div className="card-title">Files & documents</div>
+        <div className="card-title">
+          Files & documents
+          {imaging && (
+            <button className="btn sm" style={{ background: 'var(--violet)' }} onClick={openInImaging}>
+              🩻 Open in {IMAGING_LABELS[imaging]}
+            </button>
+          )}
+        </div>
         <div className="row" style={{ marginBottom: 8 }}>
           <label className="btn secondary" style={{ cursor: 'pointer' }}>
             {busy ? 'Uploading…' : '⬆ Attach file'}
@@ -611,7 +629,10 @@ function ImagingTab({ patientId }) {
                 </div>
                 {r.note && <div className="small muted">{r.note}</div>}
               </div>
-              <button className="btn ghost sm" onClick={() => delRef(r)}>✕</button>
+              <span className="row">
+                {imaging && <button className="btn sm secondary" onClick={openInImaging}>Open in {IMAGING_LABELS[imaging]}</button>}
+                <button className="btn ghost sm" onClick={() => delRef(r)}>✕</button>
+              </span>
             </div>
           ))}
           {refs.length === 0 && <div className="small muted">No external studies logged.</div>}
@@ -642,8 +663,9 @@ function ImagingTab({ patientId }) {
         <button className="btn" style={{ marginTop: 10 }} disabled={!refForm.label.trim()} onClick={addRef}>Log study</button>
       </div>
       <p className="small muted" style={{ maxWidth: 680 }}>
-        Direct sensor integration (Romexis, Sidexis, Dexis, CS Imaging; iTero / 3Shape / Medit scanners) uses proprietary
-        bridges — the practical workflow is: capture in the vendor's viewer, export or log here, so the full record lives with the patient.
+        {imaging
+          ? <>The "Open in {IMAGING_LABELS[imaging]}" buttons need the free <a href="https://github.com/mohammad-jpg/dentora/tree/main/bridge" target="_blank" rel="noreferrer" style={{ color: 'var(--teal)', fontWeight: 600 }}>Dentora Imaging Bridge</a> installed once on each surgery PC — if nothing opens, install it (2 minutes, no admin rights).</>
+          : <>Pick your imaging software in Settings → Practice to get one-click "Open in Romexis / CS Imaging" buttons here (via the free Dentora Imaging Bridge).</>}
       </p>
       {viewing && (
         <Modal title={viewing.name} onClose={() => setViewing(null)}>
