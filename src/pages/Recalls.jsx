@@ -49,8 +49,8 @@ export default function Recalls() {
         <div className="card card-pad" style={{ borderLeft: '4px solid var(--teal)', marginBottom: 16 }}>
           <b style={{ fontFamily: 'var(--font-display)', fontSize: 14 }}>Automatic recalls are on</b>
           <p className="small muted" style={{ marginTop: 4 }}>
-            Every morning at 8am, Dentora texts everyone due in the next 7 days (and anyone overdue) with your online
-            booking link, and marks them contacted — when they book themselves in, it lands straight in your diary.
+            Each patient gets exactly two texts — one week before their recall is due and one the day before —
+            with your online booking link, so nobody gets spammed. Booked online? It lands straight in your diary.
             Currently in demo mode (messages logged, not transmitted); add a Twilio number to go live.
           </p>
         </div>

@@ -114,9 +114,14 @@ function InvoiceModal({ patients, treatments, onSave, onClose }) {
         {items.map((it, i) => (
           <div key={i} className="spread small" style={{ padding: '6px 10px', background: 'var(--mint-bg)', borderRadius: 8 }}>
             <span>{it.description}</span>
-            <span className="row">{euro(it.amount)} <button className="btn ghost sm" onClick={() => setItems((a) => a.filter((_, j) => j !== i))}>✕</button></span>
+            <span className="row">
+              €<input type="number" className="input" style={{ width: 84, padding: '4px 8px' }} value={it.amount} min="0" step="5"
+                onChange={(e) => setItems((a) => a.map((x, j) => (j === i ? { ...x, amount: Number(e.target.value) } : x)))} />
+              <button className="btn ghost sm" onClick={() => setItems((a) => a.filter((_, j) => j !== i))}>✕</button>
+            </span>
           </div>
         ))}
+        {items.length > 0 && <p className="small muted" style={{ margin: 0 }}>Adjust prices per case — e.g. a one-surface filling vs full coverage.</p>}
         {items.length > 0 && <div className="spread" style={{ fontWeight: 700 }}><span>Total</span><span>{euro(total)}</span></div>}
       </div>
       <div className="actions">

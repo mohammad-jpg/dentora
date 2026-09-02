@@ -28,6 +28,7 @@ export default function Portal() {
       <Routes>
         <Route path="/" element={<PortalHome />} />
         <Route path="/book" element={<BookFlow />} />
+        <Route path="/medical" element={<MedicalHistory />} />
         <Route path="/call/:id" element={<VideoCall />} />
         <Route path="*" element={<PortalHome />} />
       </Routes>
@@ -72,6 +73,17 @@ function PortalHome() {
       <Link to="/book" className="btn" style={{ justifyContent: 'center', padding: '14px 16px', fontSize: 15 }}>
         + Book an appointment
       </Link>
+
+      {appts.length > 0 && (
+        <Link to="/medical" className="appt-card" style={{ textDecoration: 'none' }}>
+          <div className="appt-date" style={{ background: 'var(--violet-soft)', color: 'var(--violet)' }}><b>📋</b></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700 }}>Medical history</div>
+            <div className="small muted">Fill it in from home before your visit — skip the waiting-room form.</div>
+          </div>
+          <span className="btn sm secondary">Fill in →</span>
+        </Link>
+      )}
 
       <div>
         <div className="card-title" style={{ marginBottom: 10 }}>Upcoming</div>
@@ -299,3 +311,92 @@ function BookFlow() {
 }
 
 const cleanReasonLabel = (r) => r
+
+const MH_CONDITIONS = [
+  'Heart condition', 'High blood pressure', 'Diabetes', 'Asthma / breathing', 'Epilepsy',
+  'Bleeding disorder / blood thinners', 'Hepatitis / HIV', 'Osteoporosis medication', 'Pregnancy',
+]
+
+function MedicalHistory() {
+  const [f, setF] = useState({ conditions: [], other_condition: '', medications: '', allergies: '', smoker: '', gp: '', emergency_contact: '', consent: false, signature: '' })
+  const [done, setDone] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const toast = useToast()
+
+  const toggle = (c) =>
+    setF((x) => ({ ...x, conditions: x.conditions.includes(c) ? x.conditions.filter((v) => v !== c) : [...x.conditions, c] }))
+
+  const submit = async () => {
+    setBusy(true)
+    const { data, error } = await sb.functions.invoke('portal', { body: { action: 'medical_history', data: f } })
+    setBusy(false)
+    if (error || data?.error) {
+      let msg = data?.error || 'Could not save — try again.'
+      if (error?.context) { try { msg = (await error.context.json())?.error || msg } catch { /* keep */ } }
+      return toast(msg)
+    }
+    setDone(true)
+  }
+
+  if (done) {
+    return (
+      <div className="portal-main" style={{ textAlign: 'center', paddingTop: 70 }}>
+        <div style={{ fontSize: 48 }}>✅</div>
+        <div className="page-title" style={{ marginTop: 12 }}>Medical history saved</div>
+        <div className="page-sub">Your dentist will see it before your appointment — no waiting-room forms for you.</div>
+        <Link to="/" className="btn" style={{ marginTop: 24 }}>Back to home</Link>
+      </div>
+    )
+  }
+
+  const ok = f.consent && f.signature.trim()
+  return (
+    <div className="portal-main">
+      <div className="spread">
+        <div className="page-title" style={{ fontSize: 20 }}>Medical history</div>
+        <Link to="/" className="btn secondary sm">← Back</Link>
+      </div>
+      <div className="card card-pad">
+        <div className="card-title">Do any of these apply to you?</div>
+        <div className="pick-grid">
+          {MH_CONDITIONS.map((c) => (
+            <button key={c} className={`pick ${f.conditions.includes(c) ? 'on' : ''}`} onClick={() => toggle(c)}>
+              <b style={{ fontSize: 13.5 }}>{c}</b>
+            </button>
+          ))}
+        </div>
+        <input className="input" style={{ marginTop: 10 }} placeholder="Anything else we should know?"
+          value={f.other_condition} onChange={(e) => setF((x) => ({ ...x, other_condition: e.target.value }))} />
+      </div>
+      <div className="card card-pad grid" style={{ gap: 12 }}>
+        <div><label className="field">Medications you take</label>
+          <input className="input" value={f.medications} onChange={(e) => setF((x) => ({ ...x, medications: e.target.value }))} placeholder="e.g. warfarin, inhaler — or 'none'" /></div>
+        <div><label className="field">Allergies</label>
+          <input className="input" value={f.allergies} onChange={(e) => setF((x) => ({ ...x, allergies: e.target.value }))} placeholder="e.g. penicillin, latex — or 'none'" /></div>
+        <div>
+          <label className="field">Do you smoke?</label>
+          <div className="row">
+            {['No', 'Yes', 'Vape'].map((v) => (
+              <button key={v} className={`btn sm ${f.smoker === v ? '' : 'secondary'}`} onClick={() => setF((x) => ({ ...x, smoker: v }))}>{v}</button>
+            ))}
+          </div>
+        </div>
+        <div><label className="field">Your GP</label>
+          <input className="input" value={f.gp} onChange={(e) => setF((x) => ({ ...x, gp: e.target.value }))} /></div>
+        <div><label className="field">Emergency contact (name & number)</label>
+          <input className="input" value={f.emergency_contact} onChange={(e) => setF((x) => ({ ...x, emergency_contact: e.target.value }))} /></div>
+      </div>
+      <div className="card card-pad grid" style={{ gap: 12 }}>
+        <label className="row" style={{ cursor: 'pointer', alignItems: 'flex-start', gap: 10 }}>
+          <input type="checkbox" checked={f.consent} onChange={(e) => setF((x) => ({ ...x, consent: e.target.checked }))} style={{ marginTop: 3 }} />
+          <span className="small">I confirm the above is accurate and consent to my dental clinic storing this information for my care.</span>
+        </label>
+        <div><label className="field">Type your full name to sign</label>
+          <input className="input" value={f.signature} onChange={(e) => setF((x) => ({ ...x, signature: e.target.value }))} /></div>
+        <button className="btn" style={{ padding: 14, justifyContent: 'center' }} disabled={!ok || busy} onClick={submit}>
+          {busy ? 'Saving…' : 'Save my medical history'}
+        </button>
+      </div>
+    </div>
+  )
+}

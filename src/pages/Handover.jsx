@@ -70,7 +70,7 @@ export default function Handover() {
       : sb.from('dental_routing_slips').insert(payload)
     const { error } = await q
     if (error) return toast('Error: ' + error.message)
-    toast(status === 'handed_over' ? 'Slip handed to front desk' : 'Slip saved')
+    toast(status === 'handed_over' ? 'Handed to front desk' : 'Handover sheet saved')
     setEditing(null)
     load()
   }
@@ -91,9 +91,9 @@ export default function Handover() {
       <div className="topbar">
         <div>
           <div className="page-title">Handover</div>
-          <div className="page-sub">Patient routing slips — nurse/hygienist completes, front desk processes. No more paper + scanning.</div>
+          <div className="page-sub">Clinical handover sheets — nurse/hygienist completes, front desk processes. No more paper + scanning.</div>
         </div>
-        <button className="btn" onClick={startNew}>+ New routing slip</button>
+        <button className="btn" onClick={startNew}>+ New handover sheet</button>
       </div>
       <div className="content">
         <div className="card">
@@ -120,7 +120,7 @@ export default function Handover() {
                   </tr>
                 )
               })}
-              {slips.length === 0 && <tr><td colSpan={6}><div className="empty">No routing slips yet.</div></td></tr>}
+              {slips.length === 0 && <tr><td colSpan={6}><div className="empty">No handover sheets yet.</div></td></tr>}
             </tbody>
           </table>
         </div>
@@ -193,7 +193,7 @@ function SlipForm({ slip, patients, pracs, onChange, onSave, onCancel }) {
     <>
       <div className="topbar">
         <div>
-          <div className="page-title">Patient routing slip</div>
+          <div className="page-title">Handover sheet</div>
           <div className="page-sub">Complete in sequence · diagnostics before treatment · hand over to front desk when done</div>
         </div>
         <div className="row">

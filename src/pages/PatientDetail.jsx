@@ -121,6 +121,7 @@ function ChartTab({ patientId }) {
   const [entries, setEntries] = useState([])
   const [tooth, setTooth] = useState(null)
   const [dentition, setDentition] = useState('adult')
+  const [asOf, setAsOf] = useState('') // '' = current chart; else YYYY-MM-DD snapshot
   const [form, setForm] = useState({ condition: 'caries', surface: '', status: 'planned', note: '' })
   const toast = useToast()
 
@@ -146,19 +147,30 @@ function ChartTab({ patientId }) {
     load()
   }
 
-  const toothEntries = entries.filter((e) => e.tooth === tooth)
+  const changeDates = [...new Set(entries.map((e) => e.created_at.slice(0, 10)))].sort().reverse()
+  const visible = asOf ? entries.filter((e) => e.created_at.slice(0, 10) <= asOf) : entries
+  const toothEntries = visible.filter((e) => e.tooth === tooth)
 
   return (
     <div className="grid" style={{ gridTemplateColumns: '1.7fr 1fr' }}>
       <div className="card card-pad">
         <div className="card-title">
           Dental chart {dentition === 'adult' ? '(FDI)' : '(primary — ABCDE)'}
-          <span className="row" style={{ gap: 4 }}>
+          <span className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
+            <select className="input" style={{ width: 170, padding: '5px 8px' }} value={asOf} onChange={(e) => setAsOf(e.target.value)}>
+              <option value="">Current chart</option>
+              {changeDates.map((d) => <option key={d} value={d}>As of {new Date(d + 'T12:00').toLocaleDateString('en-IE')}</option>)}
+            </select>
             <button className={`btn sm ${dentition === 'adult' ? '' : 'secondary'}`} onClick={() => { setDentition('adult'); setTooth(null) }}>Adult</button>
             <button className={`btn sm ${dentition === 'primary' ? '' : 'secondary'}`} onClick={() => { setDentition('primary'); setTooth(null) }}>Baby teeth</button>
           </span>
         </div>
-        <Odontogram entries={entries} selectedTooth={tooth} onSelect={setTooth} dentition={dentition} />
+        {asOf && (
+          <div className="badge b-amber" style={{ marginBottom: 10 }}>
+            📜 Viewing the chart as it stood on {new Date(asOf + 'T12:00').toLocaleDateString('en-IE')} — read-only
+          </div>
+        )}
+        <Odontogram entries={visible} selectedTooth={tooth} onSelect={setTooth} dentition={dentition} />
       </div>
       <div className="card card-pad">
         <div className="card-title">{tooth ? `Tooth ${tooth}` : 'Select a tooth'}</div>
@@ -171,14 +183,15 @@ function ChartTab({ patientId }) {
                     <span className="badge" style={{ background: CONDITIONS[e.condition]?.color + '22', color: CONDITIONS[e.condition]?.color }}>
                       {CONDITIONS[e.condition]?.label}{e.surface ? ` · ${e.surface}` : ''}
                     </span>
-                    <span className="small muted" style={{ marginLeft: 8 }}>{e.status}</span>
+                    <span className="small muted" style={{ marginLeft: 8 }}>{e.status} · {fmtDate(e.created_at)}</span>
                     {e.note && <div className="small muted" style={{ marginTop: 3 }}>{e.note}</div>}
                   </div>
-                  <button className="btn ghost sm" onClick={() => del(e.id)}>✕</button>
+                  {!asOf && <button className="btn ghost sm" onClick={() => del(e.id)}>✕</button>}
                 </div>
               ))}
               {toothEntries.length === 0 && <div className="small muted">No entries for this tooth.</div>}
             </div>
+            {!asOf && (
             <div className="grid" style={{ gap: 10 }}>
               <div className="form-grid">
                 <div>
@@ -207,6 +220,7 @@ function ChartTab({ patientId }) {
               </div>
               <button className="btn" onClick={add}>Add to tooth {tooth}</button>
             </div>
+            )}
           </>
         ) : (
           <div className="empty">Click a tooth on the chart to view or record findings.</div>
@@ -328,7 +342,11 @@ function PlanModal({ treatments, onSave, onClose }) {
         {items.map((it, i) => (
           <div key={i} className="spread small" style={{ padding: '6px 10px', background: 'var(--mint-bg)', borderRadius: 8 }}>
             <span>{it.name}{it.tooth ? ` · ${it.tooth}` : ''}</span>
-            <span className="row">{euro(it.price)} <button className="btn ghost sm" onClick={() => setItems((a) => a.filter((_, j) => j !== i))}>✕</button></span>
+            <span className="row">
+              €<input type="number" className="input" style={{ width: 84, padding: '4px 8px' }} value={it.price} min="0" step="5"
+                onChange={(e) => setItems((a) => a.map((x, j) => (j === i ? { ...x, price: Number(e.target.value) } : x)))} />
+              <button className="btn ghost sm" onClick={() => setItems((a) => a.filter((_, j) => j !== i))}>✕</button>
+            </span>
           </div>
         ))}
         {items.length > 0 && <div className="spread" style={{ fontWeight: 700 }}><span>Total</span><span>{euro(total)}</span></div>}
@@ -529,10 +547,15 @@ function ImagingTab({ patientId }) {
     load()
   }
 
+  const [viewing, setViewing] = useState(null) // {name, url, kind}
+
   const open = async (f) => {
-    const { data, error } = await sb.storage.from('dental-files').createSignedUrl(`${patientId}/${f.name}`, 300)
+    const { data, error } = await sb.storage.from('dental-files').createSignedUrl(`${patientId}/${f.name}`, 600)
     if (error) return toast('Error: ' + error.message)
-    window.open(data.signedUrl, '_blank')
+    const ext = f.name.split('.').pop().toLowerCase()
+    const kind = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'].includes(ext) ? 'image' : ext === 'pdf' ? 'pdf' : 'other'
+    if (kind === 'other') return window.open(data.signedUrl, '_blank')
+    setViewing({ name: f.name.replace(/^\d+_/, ''), url: data.signedUrl, kind })
   }
 
   const del = async (f) => {
@@ -622,6 +645,17 @@ function ImagingTab({ patientId }) {
         Direct sensor integration (Romexis, Sidexis, Dexis, CS Imaging; iTero / 3Shape / Medit scanners) uses proprietary
         bridges — the practical workflow is: capture in the vendor's viewer, export or log here, so the full record lives with the patient.
       </p>
+      {viewing && (
+        <Modal title={viewing.name} onClose={() => setViewing(null)}>
+          {viewing.kind === 'image'
+            ? <img src={viewing.url} alt={viewing.name} style={{ maxWidth: '100%', borderRadius: 10 }} />
+            : <iframe src={viewing.url} title={viewing.name} style={{ width: '100%', height: '60vh', border: 'none', borderRadius: 10 }} />}
+          <div className="actions">
+            <a className="btn secondary" href={viewing.url} target="_blank" rel="noreferrer">Open in new tab</a>
+            <button className="btn" onClick={() => setViewing(null)}>Close</button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
