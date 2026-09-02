@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { sb, euro, fmtDate, fmtTime, fullName, age } from '../supabase.js'
 import { Modal, StatusBadge, InvoiceBadge, useToast } from '../ui.jsx'
 import Odontogram, { CONDITIONS } from '../Odontogram.jsx'
+import { BpeModal, PerioModal, bpeFlag, SEXTANTS } from '../PerioChart.jsx'
 import { PatientModal } from './Patients.jsx'
 import { useClinic } from '../clinic.jsx'
 
@@ -123,7 +124,21 @@ function ChartTab({ patientId }) {
   const [dentition, setDentition] = useState('adult')
   const [asOf, setAsOf] = useState('') // '' = current chart; else YYYY-MM-DD snapshot
   const [form, setForm] = useState({ condition: 'caries', surface: '', status: 'planned', note: '' })
+  const [latestBpe, setLatestBpe] = useState(null)
+  const [showBpe, setShowBpe] = useState(false)
+  const [showPerio, setShowPerio] = useState(false)
+  const { clinicId } = useClinic()
+  const [examiner, setExaminer] = useState('')
   const toast = useToast()
+
+  const loadBpe = () =>
+    sb.from('dental_bpe_exams').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }).limit(1)
+      .then(({ data }) => setLatestBpe(data?.[0] || null))
+  useEffect(() => {
+    loadBpe()
+    sb.from('dental_practitioners').select('name').eq('clinic_id', clinicId).order('name').limit(1)
+      .then(({ data }) => setExaminer(data?.[0]?.name || ''))
+  }, [patientId])
 
   const load = () =>
     sb.from('dental_chart_entries').select('*').eq('patient_id', patientId).order('created_at')
@@ -163,8 +178,23 @@ function ChartTab({ patientId }) {
             </select>
             <button className={`btn sm ${dentition === 'adult' ? '' : 'secondary'}`} onClick={() => { setDentition('adult'); setTooth(null) }}>Adult</button>
             <button className={`btn sm ${dentition === 'primary' ? '' : 'secondary'}`} onClick={() => { setDentition('primary'); setTooth(null) }}>Baby teeth</button>
+            <button className="btn sm secondary" onClick={() => setShowBpe(true)}>BPE</button>
+            <button className="btn sm" style={{ background: 'var(--violet)' }} onClick={() => setShowPerio(true)}>Perio chart</button>
           </span>
         </div>
+        {latestBpe && (
+          <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+            <span className="badge b-teal">
+              BPE {fmtDate(latestBpe.created_at)}: {SEXTANTS.map(([k]) => latestBpe.scores?.[k] ?? '–').join(' / ')}
+              {(latestBpe.scores?.stars || []).length ? ' ★' : ''}
+            </span>
+            {bpeFlag(latestBpe.scores) && (
+              <button className="badge b-red" style={{ border: 'none', cursor: 'pointer' }} onClick={() => setShowPerio(true)}>
+                ⚠ Comprehensive perio exam indicated — open perio chart
+              </button>
+            )}
+          </div>
+        )}
         {asOf && (
           <div className="badge b-amber" style={{ marginBottom: 10 }}>
             📜 Viewing the chart as it stood on {new Date(asOf + 'T12:00').toLocaleDateString('en-IE')} — read-only
@@ -226,6 +256,11 @@ function ChartTab({ patientId }) {
           <div className="empty">Click a tooth on the chart to view or record findings.</div>
         )}
       </div>
+      {showBpe && (
+        <BpeModal patientId={patientId} examiner={examiner} latest={latestBpe}
+          onSaved={() => { setShowBpe(false); loadBpe() }} onClose={() => setShowBpe(false)} />
+      )}
+      {showPerio && <PerioModal patientId={patientId} examiner={examiner} onClose={() => setShowPerio(false)} />}
     </div>
   )
 }

@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 
-export function Modal({ title, onClose, children }) {
+export function Modal({ title, onClose, children, wide = false }) {
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
+      <div className={`modal ${wide ? 'wide' : ''}`}>
         <h3>{title}</h3>
         {children}
       </div>
