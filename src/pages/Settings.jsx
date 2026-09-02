@@ -80,24 +80,7 @@ export default function Settings() {
           <div className="grid" style={{ gap: 16 }}>
             <PracticeCard clinic={clinic} onSave={saveClinic} />
 
-            <div className="card card-pad">
-              <div className="card-title">
-                Team
-                {role === 'owner' && <button className="btn sm" onClick={() => setInviting(true)}>+ Add team member</button>}
-              </div>
-              <div className="grid" style={{ gap: 10 }}>
-                {members.map((m) => (
-                  <div key={m.id} className="spread" style={{ padding: '8px 12px', background: 'var(--mint-bg)', borderRadius: 10 }}>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{m.display_name || m.email}</div>
-                      <div className="small muted">{m.email}</div>
-                    </div>
-                    <span className={`badge ${m.role === 'owner' ? 'b-teal' : 'b-gray'}`}>{m.role}</span>
-                  </div>
-                ))}
-              </div>
-              {role !== 'owner' && <p className="small muted" style={{ marginTop: 10 }}>Only the clinic owner can add team members.</p>}
-            </div>
+            <TeamCard members={members} canManage={['owner', 'admin'].includes(role)} onInvite={() => setInviting(true)} onChanged={load} />
 
             <div className="card card-pad">
               <div className="card-title">
@@ -116,20 +99,7 @@ export default function Settings() {
 
             <TemplatesCard clinicId={clinicId} />
 
-            <div className="card card-pad">
-              <div className="card-title">Clinicians</div>
-              <div className="grid" style={{ gap: 10 }}>
-                {pracs.map((p) => (
-                  <div key={p.id} className="row" style={{ padding: '8px 10px', background: 'var(--mint-bg)', borderRadius: 10 }}>
-                    <span className="swatch" style={{ background: p.color, borderRadius: 99 }} />
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{p.name}</div>
-                      <div className="small muted">{p.role}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <CliniciansCard pracs={pracs} clinicId={clinicId} canManage={['owner', 'admin'].includes(role)} onChanged={load} />
           </div>
 
           <div className="card">
@@ -156,6 +126,162 @@ export default function Settings() {
       </div>
       {inviting && <InviteModal onSave={invite} onClose={() => setInviting(false)} />}
     </>
+  )
+}
+
+function TeamCard({ members, canManage, onInvite, onChanged }) {
+  const [busyId, setBusyId] = useState(null)
+  const [pwFor, setPwFor] = useState(null) // membership being given a new password
+  const [pw, setPw] = useState('')
+  const [removeFor, setRemoveFor] = useState(null)
+  const toast = useToast()
+
+  const call = async (m, body, okMsg) => {
+    setBusyId(m.id)
+    const { data, error } = await sb.functions.invoke('manage-staff', { body: { membership_id: m.id, ...body } })
+    setBusyId(null)
+    if (error || data?.error) {
+      let msg = data?.error || 'Something went wrong.'
+      if (error?.context) { try { msg = (await error.context.json())?.error || msg } catch { /* keep */ } }
+      return toast(msg)
+    }
+    toast(okMsg)
+    setPwFor(null); setPw(''); setRemoveFor(null)
+    onChanged()
+  }
+
+  const roleBadge = { owner: 'b-teal', admin: 'b-violet', dentist: 'b-blue', staff: 'b-gray' }
+
+  return (
+    <div className="card card-pad">
+      <div className="card-title">
+        Team
+        {canManage && <button className="btn sm" onClick={onInvite}>+ Add team member</button>}
+      </div>
+      <div className="grid" style={{ gap: 10 }}>
+        {members.map((m) => (
+          <div key={m.id} style={{ padding: '10px 12px', background: 'var(--mint-bg)', borderRadius: 10 }}>
+            <div className="spread">
+              <div>
+                <div style={{ fontWeight: 600 }}>{m.display_name || m.email}</div>
+                <div className="small muted">{m.email}</div>
+              </div>
+              <span className={`badge ${roleBadge[m.role] || 'b-gray'}`}>{m.role}</span>
+            </div>
+            {canManage && m.role !== 'owner' && (
+              <div className="row" style={{ marginTop: 8, flexWrap: 'wrap', gap: 6 }}>
+                <button className="btn ghost sm" disabled={busyId === m.id} onClick={() => { setPwFor(m); setPw('') }}>New password</button>
+                {m.role === 'admin'
+                  ? <button className="btn ghost sm" disabled={busyId === m.id}
+                      onClick={() => call(m, { action: 'set_role', role: m.practitioner_id ? 'dentist' : 'staff' }, 'Admin access removed')}>Remove admin</button>
+                  : <button className="btn ghost sm" disabled={busyId === m.id}
+                      onClick={() => call(m, { action: 'set_role', role: 'admin' }, `${m.display_name || m.email} can now manage the team`)}>Make admin</button>}
+                <button className="btn ghost sm" style={{ color: 'var(--red)' }} disabled={busyId === m.id} onClick={() => setRemoveFor(m)}>Remove</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {!canManage && <p className="small muted" style={{ marginTop: 10 }}>Only the practice owner or an admin can manage the team.</p>}
+
+      {pwFor && (
+        <Modal title={`New password — ${pwFor.display_name || pwFor.email}`} onClose={() => setPwFor(null)}>
+          <label className="field">Set their new password (8+ characters — share it with them)</label>
+          <input className="input" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
+          <div className="actions">
+            <button className="btn secondary" onClick={() => setPwFor(null)}>Cancel</button>
+            <button className="btn" disabled={pw.length < 8} onClick={() => call(pwFor, { action: 'set_password', password: pw }, 'Password updated')}>Save password</button>
+          </div>
+        </Modal>
+      )}
+      {removeFor && (
+        <Modal title={`Remove ${removeFor.display_name || removeFor.email}?`} onClose={() => setRemoveFor(null)}>
+          <p className="small" style={{ color: 'var(--ink-60)' }}>
+            Their login stops working immediately and their diary column is retired. All their past
+            appointments, notes and treatments stay on the patient records — nothing clinical is deleted.
+          </p>
+          <div className="actions">
+            <button className="btn secondary" onClick={() => setRemoveFor(null)}>Cancel</button>
+            <button className="btn danger" onClick={() => call(removeFor, { action: 'remove' }, 'Team member removed')}>Remove from team</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function CliniciansCard({ pracs, clinicId, canManage, onChanged }) {
+  const [editing, setEditing] = useState(null) // practitioner being edited, or {new: true}
+  const toast = useToast()
+
+  const save = async () => {
+    const payload = { name: editing.name.trim(), role: editing.role, color: editing.color, active: editing.active }
+    if (!payload.name) return
+    const q = editing.id
+      ? sb.from('dental_practitioners').update(payload).eq('id', editing.id)
+      : sb.from('dental_practitioners').insert({ ...payload, clinic_id: clinicId })
+    const { error } = await q
+    if (error) return toast('Error: ' + error.message)
+    toast(editing.id ? 'Clinician updated' : `${payload.name} added to the diary`)
+    setEditing(null)
+    onChanged()
+  }
+
+  return (
+    <div className="card card-pad">
+      <div className="card-title">
+        Clinicians & diary columns
+        {canManage && <button className="btn sm" onClick={() => setEditing({ new: true, name: '', role: 'Associate Dentist', color: '#2F6FD6', active: true })}>+ Add (no login)</button>}
+      </div>
+      <div className="grid" style={{ gap: 10 }}>
+        {pracs.map((p) => (
+          <div key={p.id} className="spread" style={{ padding: '8px 10px', background: 'var(--mint-bg)', borderRadius: 10, opacity: p.active ? 1 : 0.55 }}>
+            <div className="row">
+              <span className="swatch" style={{ background: p.color, borderRadius: 99 }} />
+              <div>
+                <div style={{ fontWeight: 600 }}>{p.name} {!p.active && <span className="badge b-gray">hidden from diary</span>}</div>
+                <div className="small muted">{p.role}</div>
+              </div>
+            </div>
+            {canManage && <button className="btn ghost sm" onClick={() => setEditing({ ...p })}>Edit</button>}
+          </div>
+        ))}
+      </div>
+      <p className="small muted" style={{ marginTop: 10 }}>
+        "Add team member" above creates a login + diary column together; "+ Add (no login)" is for locums or
+        clinicians who don't need their own sign-in.
+      </p>
+
+      {editing && (
+        <Modal title={editing.id ? `Edit ${editing.name}` : 'Add clinician'} onClose={() => setEditing(null)}>
+          <div className="grid" style={{ gap: 12 }}>
+            <div><label className="field">Name</label>
+              <input className="input" value={editing.name} onChange={(e) => setEditing((x) => ({ ...x, name: e.target.value }))} autoFocus /></div>
+            <div className="form-grid">
+              <div>
+                <label className="field">Role</label>
+                <select className="input" value={editing.role} onChange={(e) => setEditing((x) => ({ ...x, role: e.target.value }))}>
+                  {['Principal Dentist', 'Associate Dentist', 'Hygienist', 'Orthodontist', 'Locum Dentist', 'Dental Nurse'].map((r) => <option key={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="field">Diary colour</label>
+                <input type="color" className="input" style={{ height: 40, padding: 4 }} value={editing.color}
+                  onChange={(e) => setEditing((x) => ({ ...x, color: e.target.value }))} />
+              </div>
+            </div>
+            <label className="row" style={{ cursor: 'pointer', gap: 8 }}>
+              <input type="checkbox" checked={editing.active} onChange={(e) => setEditing((x) => ({ ...x, active: e.target.checked }))} />
+              <span className="small">Show in the diary (untick to hide — e.g. on leave or has left; history is kept)</span>
+            </label>
+          </div>
+          <div className="actions">
+            <button className="btn secondary" onClick={() => setEditing(null)}>Cancel</button>
+            <button className="btn" onClick={save}>Save</button>
+          </div>
+        </Modal>
+      )}
+    </div>
   )
 }
 
@@ -254,7 +380,7 @@ function PracticeCard({ clinic, onSave }) {
 }
 
 function InviteModal({ onSave, onClose }) {
-  const [f, setF] = useState({ name: '', role: 'Associate Dentist', email: '', password: '' })
+  const [f, setF] = useState({ name: '', role: 'Associate Dentist', email: '', password: '', is_admin: false })
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
   const ok = f.name.trim() && /.+@.+\..+/.test(f.email) && f.password.length >= 8
   return (
@@ -270,6 +396,10 @@ function InviteModal({ onSave, onClose }) {
         <div><label className="field">Their email (their login)</label><input className="input" type="email" value={f.email} onChange={set('email')} /></div>
         <div><label className="field">Set their password (8+ characters — share it with them)</label>
           <input className="input" value={f.password} onChange={set('password')} /></div>
+        <label className="row" style={{ cursor: 'pointer', gap: 8 }}>
+          <input type="checkbox" checked={f.is_admin} onChange={(e) => setF((x) => ({ ...x, is_admin: e.target.checked }))} />
+          <span className="small">Can manage the team (admin) — e.g. your practice manager or secretary</span>
+        </label>
         <p className="small muted">Dentists, hygienists and orthodontists get a diary column and a Mon–Fri rota automatically. Reception and nurses get a login without a diary column.</p>
       </div>
       <div className="actions">
