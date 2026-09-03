@@ -25,8 +25,9 @@ export default function Diary() {
   const [appts, setAppts] = useState([])
   const [rota, setRota] = useState([])
   const [editing, setEditing] = useState(null) // appt object or {new: true, prac, h, m}
+  const [sickDay, setSickDay] = useState(null) // practitioner whose day is being cancelled
   const toast = useToast()
-  const { clinicId } = useClinic()
+  const { clinicId, clinic } = useClinic()
 
   useEffect(() => {
     sb.from('dental_practitioners').select('*').eq('clinic_id', clinicId).eq('active', true).order('name').then(({ data }) => setPracs(data || []))
@@ -88,6 +89,24 @@ export default function Diary() {
     load()
   }
 
+  // "Linda move": dentist called in sick — cancel their day, text every patient to rebook.
+  const cancelDay = async (prac) => {
+    const dayAppts = appts.filter((a) => a.practitioner_id === prac.id && !['cancelled', 'completed'].includes(a.status))
+    const dateLabel = date.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })
+    for (const a of dayAppts) {
+      await sb.from('dental_appointments').update({ status: 'cancelled' }).eq('id', a.id)
+      if (a.patient?.id) {
+        await sb.from('dental_comms_log').insert({
+          patient_id: a.patient.id, channel: 'sms',
+          body: `[demo] Hi ${a.patient.first_name}, we're very sorry — ${prac.name} can't see you on ${dateLabel}. Please rebook a time that suits: https://mohammad-jpg.github.io/dentora/ or call ${clinic.phone || 'the practice'} and we'll prioritise you.`,
+        })
+      }
+    }
+    toast(`${prac.name}'s day cleared — ${dayAppts.length} patient(s) texted to rebook`)
+    setSickDay(null)
+    load()
+  }
+
   const gridCols = `64px repeat(${pracs.length}, minmax(180px, 1fr))`
 
   return (
@@ -119,6 +138,9 @@ export default function Diary() {
               return (
                 <div className="col-h" key={p.id}>
                   <span style={{ color: p.color }}>●</span> {p.name}
+                  <button title={`${p.name} called in sick? Cancel & rebook their day`}
+                    onClick={() => setSickDay(p)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, marginLeft: 4, opacity: 0.6 }}>🤒</button>
                   <div className="role">{where}</div>
                 </div>
               )
@@ -162,6 +184,18 @@ export default function Diary() {
         </div>
       </div>
 
+      {sickDay && (
+        <Modal title={`${sickDay.name} can't come in?`} onClose={() => setSickDay(null)}>
+          <p className="small" style={{ color: 'var(--ink-60)' }}>
+            This cancels <b>{appts.filter((a) => a.practitioner_id === sickDay.id && !['cancelled', 'completed'].includes(a.status)).length} appointment(s)</b> in {sickDay.name}'s
+            column for {date.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })} and texts each patient an apology with the rebooking link — the whole day handled in one click.
+          </p>
+          <div className="actions">
+            <button className="btn secondary" onClick={() => setSickDay(null)}>Cancel</button>
+            <button className="btn danger" onClick={() => cancelDay(sickDay)}>Clear the day & text patients</button>
+          </div>
+        </Modal>
+      )}
       {editing && (
         <ApptModal
           key={editing.id || 'new'}
