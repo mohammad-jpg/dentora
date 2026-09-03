@@ -33,26 +33,24 @@ const I = {
 }
 
 function Nav({ onNavigate }) {
-  const links = [
-    ['/', 'Dashboard', I.home],
-    ['/diary', 'Diary', I.cal],
-    ['/patients', 'Patients', I.people],
-    ['/billing', 'Billing', I.euro],
-    ['/recalls', 'Recalls', I.bell],
-    ['/referrals', 'Referrals', I.send],
-    ['/handover', 'Handover', I.clip],
-    ['/checkin', 'Check-in', I.people],
-    ['/tasks', 'Tasks', I.check],
-    ['/reports', 'Reports', I.chart],
-    ['/settings', 'Settings', I.cog],
+  const sections = [
+    [null, [['/', 'Dashboard', I.home], ['/diary', 'Diary', I.cal]]],
+    ['Clinical', [['/patients', 'Patients', I.people], ['/handover', 'Handover', I.clip]]],
+    ['Front desk', [['/checkin', 'Check-in', I.people], ['/recalls', 'Recalls', I.bell], ['/referrals', 'Referrals', I.send], ['/billing', 'Billing', I.euro]]],
+    ['Practice', [['/tasks', 'Tasks', I.check], ['/reports', 'Reports', I.chart], ['/settings', 'Settings', I.cog]]],
   ]
   return (
     <nav className="nav">
-      {links.map(([to, label, icon]) => (
-        <NavLink key={to} to={to} end={to === '/'} onClick={onNavigate}>
-          {icon}
-          {label}
-        </NavLink>
+      {sections.map(([label, links], i) => (
+        <div key={i} style={{ display: 'contents' }}>
+          {label && <div className="nav-section">{label}</div>}
+          {links.map(([to, name, icon]) => (
+            <NavLink key={to} to={to} end={to === '/'} onClick={onNavigate}>
+              {icon}
+              {name}
+            </NavLink>
+          ))}
+        </div>
       ))}
     </nav>
   )
@@ -103,13 +101,23 @@ function Shell() {
           </div>
           <Nav onNavigate={() => setNavOpen(false)} />
           <div className="sidebar-foot">
-            <b>{clinic.name}</b>
-            <br />
-            <button
-              onClick={() => sb.auth.signOut()}
-              style={{ background: 'none', border: 'none', color: '#7E959C', padding: 0, marginTop: 4, fontSize: 11.5, textDecoration: 'underline' }}>
-              Sign out
-            </button>
+            <div className="row" style={{ gap: 9 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: 9, flexShrink: 0, display: 'grid', placeItems: 'center',
+                background: 'linear-gradient(135deg, #12A3A1, #0A5958)', color: '#fff',
+                fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12,
+              }}>
+                {clinic.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <b>{clinic.name}</b>
+                <button
+                  onClick={() => sb.auth.signOut()}
+                  style={{ background: 'none', border: 'none', color: '#7E959C', padding: 0, fontSize: 11, cursor: 'pointer' }}>
+                  Sign out →
+                </button>
+              </div>
+            </div>
           </div>
         </aside>
         {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} />}

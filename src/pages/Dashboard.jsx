@@ -39,12 +39,14 @@ export default function Dashboard() {
 
   const seen = appts.filter((a) => ['arrived', 'completed'].includes(a.status)).length
   const today = new Date().toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })
+  const h = new Date().getHours()
+  const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
     <>
       <div className="topbar">
         <div>
-          <div className="page-title">Good morning 👋</div>
+          <div className="page-title">{greeting} 👋</div>
           <div className="page-sub">{today} · here's how {clinic.name} looks</div>
         </div>
         <Link to="/diary" className="btn">Open diary</Link>

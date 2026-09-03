@@ -109,6 +109,12 @@ export default function Diary() {
 
   const gridCols = `64px repeat(${pracs.length}, minmax(180px, 1fr))`
 
+  const isToday = dayKey(date) === dayKey(new Date())
+  const now = new Date()
+  const nowMins = (now.getHours() - DAY_START) * 60 + now.getMinutes()
+  const nowTop = (nowMins / SLOT_MIN) * SLOT_PX
+  const showNow = isToday && nowMins > 0 && nowMins < (DAY_END - DAY_START) * 60
+
   return (
     <>
       <div className="topbar">
@@ -154,6 +160,7 @@ export default function Diary() {
             </div>
             {pracs.map((prac) => (
               <div className="prac-col" key={prac.id} style={{ height: slots * SLOT_PX }}>
+                {showNow && <div className="now-line" style={{ top: nowTop }} />}
                 {Array.from({ length: slots }, (_, i) => {
                   const h = DAY_START + Math.floor(i / 4)
                   const m = (i % 4) * 15

@@ -41,9 +41,17 @@ function Login() {
   if (mode === 'patient') return <PatientAuth onHome={() => setMode('choose')} />
   return (
     <div className="landing">
-      <Logo sub="Modern dental care" />
-      <h1>Your dentist, one tap away.</h1>
-      <p className="tag">Book check-ups, hygiene visits and video consultations online — or sign in to run your practice.</p>
+      <Logo sub="Practice OS" />
+      <h1>The dental practice, <em>beautifully run</em>.</h1>
+      <p className="tag">Diary, charting, notes, billing, recalls, online booking and video consultations — one system your whole practice will actually enjoy using.</p>
+      <div className="chips">
+        <span>🗓️ Smart diary</span>
+        <span>🦷 Perio & charting</span>
+        <span>📱 Online booking</span>
+        <span>📹 Video consults</span>
+        <span>🤖 Automated recalls</span>
+        <span>🔒 GDPR-first</span>
+      </div>
       <div className="doors">
         <button className="door" onClick={() => setMode('patient')}>
           <span className="emoji">😁</span>
@@ -53,9 +61,10 @@ function Login() {
         <button className="door" onClick={() => setMode('staff')}>
           <span className="emoji">🦷</span>
           <b>Practice staff</b>
-          <p>Sign in to the diary, patient records and billing — or set up a new clinic.</p>
+          <p>Sign in to your diary, patients and billing — or set up a brand-new clinic in 60 seconds.</p>
         </button>
       </div>
+      <p className="foot">No installs · works on any device · your data stays yours</p>
     </div>
   )
 }
