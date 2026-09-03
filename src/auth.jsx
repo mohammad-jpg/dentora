@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { sb } from './supabase.js'
+import Marketing from './Marketing.jsx'
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
@@ -35,10 +36,13 @@ function Logo({ sub }) {
 }
 
 function Login() {
-  const [mode, setMode] = useState('choose')
-  if (mode === 'staff') return <SignIn onSignup={() => setMode('staff-signup')} onHome={() => setMode('choose')} />
+  const [mode, setMode] = useState('landing')
+  if (mode === 'landing') {
+    return <Marketing onTrial={() => setMode('staff-signup')} onStaff={() => setMode('staff')} onPatient={() => setMode('patient')} />
+  }
+  if (mode === 'staff') return <SignIn onSignup={() => setMode('staff-signup')} onHome={() => setMode('landing')} />
   if (mode === 'staff-signup') return <SignupWizard onBack={() => setMode('staff')} />
-  if (mode === 'patient') return <PatientAuth onHome={() => setMode('choose')} />
+  if (mode === 'patient') return <PatientAuth onHome={() => setMode('landing')} />
   return (
     <div className="landing">
       <Logo sub="Practice OS" />
