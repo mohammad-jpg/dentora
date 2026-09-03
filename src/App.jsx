@@ -8,6 +8,7 @@ import Referrals from './pages/Referrals.jsx'
 import Handover from './pages/Handover.jsx'
 import Portal from './pages/Portal.jsx'
 import CheckIn from './pages/CheckIn.jsx'
+import LabWork from './pages/LabWork.jsx'
 import VideoCall from './pages/VideoCall.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Diary from './pages/Diary.jsx'
@@ -35,7 +36,7 @@ const I = {
 function Nav({ onNavigate }) {
   const sections = [
     [null, [['/', 'Dashboard', I.home], ['/diary', 'Diary', I.cal]]],
-    ['Clinical', [['/patients', 'Patients', I.people], ['/handover', 'Handover', I.clip]]],
+    ['Clinical', [['/patients', 'Patients', I.people], ['/handover', 'Handover', I.clip], ['/lab', 'Lab work', I.check]]],
     ['Front desk', [['/checkin', 'Check-in', I.people], ['/recalls', 'Recalls', I.bell], ['/referrals', 'Referrals', I.send], ['/billing', 'Billing', I.euro]]],
     ['Practice', [['/tasks', 'Tasks', I.check], ['/reports', 'Reports', I.chart], ['/settings', 'Settings', I.cog]]],
   ]
@@ -144,6 +145,7 @@ function Shell() {
             <Route path="/handover" element={<Handover />} />
             <Route path="/video/:id" element={<VideoCall staff />} />
             <Route path="/checkin" element={<CheckIn />} />
+            <Route path="/lab" element={<LabWork />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />

@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { sb, euro, fmtDate, fullName } from '../supabase.js'
 import { Modal, InvoiceBadge, useToast } from '../ui.jsx'
+import { useClinic } from '../clinic.jsx'
 
 export default function Billing() {
+  const { clinic, clinicId } = useClinic()
   const [invoices, setInvoices] = useState([])
   const [payments, setPayments] = useState([])
   const [patients, setPatients] = useState([])
@@ -55,7 +57,8 @@ export default function Billing() {
         </div>
         <button className="btn" onClick={() => setCreating(true)}>+ New invoice</button>
       </div>
-      <div className="content">
+      <div className="content grid" style={{ gap: 16 }}>
+        <DebtsCard invoices={invoices} payments={payments} clinic={clinic} clinicId={clinicId} onChanged={load} />
         <div className="card">
           <table className="tbl">
             <thead><tr><th>Invoice</th><th>Patient</th><th>Date</th><th>Items</th><th>Total</th><th>Paid</th><th>Status</th><th /></tr></thead>
@@ -83,6 +86,106 @@ export default function Billing() {
       {creating && <InvoiceModal patients={patients} treatments={treatments} onSave={createInvoice} onClose={() => setCreating(false)} />}
       {paying && <PayModal inv={paying} due={Number(paying.total) - paidFor(paying)} onSave={recordPayment} onClose={() => setPaying(null)} />}
     </>
+  )
+}
+
+// Panara-style debt manager: ageing, templated reminders with history, bad-debt write-off.
+function DebtsCard({ invoices, payments, clinic, clinicId, onChanged }) {
+  const [tpl, setTpl] = useState('')
+  const [history, setHistory] = useState({}) // patient_id -> count of account reminders
+  const [confirmOff, setConfirmOff] = useState(null)
+  const toast = useToast()
+
+  useEffect(() => {
+    sb.from('dental_message_templates').select('body').eq('clinic_id', clinicId).eq('key', 'debt_reminder').maybeSingle()
+      .then(({ data }) => setTpl(data?.body || 'Hi {name}, a reminder from {clinic} that {amount} is outstanding on your account.'))
+    sb.from('dental_comms_log').select('patient_id').like('body', '%outstanding on your account%')
+      .then(({ data }) => {
+        const h = {}
+        for (const r of data || []) h[r.patient_id] = (h[r.patient_id] || 0) + 1
+        setHistory(h)
+      })
+  }, [clinicId])
+
+  const debtors = useMemo(() => {
+    const byPatient = {}
+    for (const inv of invoices) {
+      if (inv.status === 'void' || !inv.patient) continue
+      const id = inv.patient.id
+      byPatient[id] ||= { patient: inv.patient, billed: 0, paid: 0, oldest: inv.issued_on }
+      byPatient[id].billed += Number(inv.total)
+      if (inv.status !== 'paid' && inv.issued_on < byPatient[id].oldest) byPatient[id].oldest = inv.issued_on
+    }
+    for (const p of payments) {
+      if (byPatient[p.patient_id]) byPatient[p.patient_id].paid += Number(p.amount)
+    }
+    return Object.values(byPatient)
+      .map((d) => ({ ...d, balance: d.billed - d.paid, days: Math.max(0, Math.floor((Date.now() - new Date(d.oldest).getTime()) / 86400000)) }))
+      .filter((d) => d.balance > 0.009)
+      .sort((a, b) => b.balance - a.balance)
+  }, [invoices, payments])
+
+  const remind = async (d) => {
+    const body = tpl
+      .replaceAll('{name}', d.patient.first_name)
+      .replaceAll('{clinic}', clinic.name)
+      .replaceAll('{amount}', euro(d.balance))
+      .replaceAll('{phone}', clinic.phone || 'the practice')
+    await sb.from('dental_comms_log').insert({ patient_id: d.patient.id, channel: 'sms', body: '[demo] ' + body })
+    setHistory((h) => ({ ...h, [d.patient.id]: (h[d.patient.id] || 0) + 1 }))
+    toast(`Account reminder sent to ${fullName(d.patient)}`)
+  }
+
+  const writeOff = async (d) => {
+    await sb.from('dental_payments').insert({ patient_id: d.patient.id, amount: d.balance, method: 'write_off' })
+    const open = invoices.filter((i) => i.patient?.id === d.patient.id && ['unpaid', 'part_paid'].includes(i.status))
+    for (const inv of open) await sb.from('dental_invoices').update({ status: 'paid' }).eq('id', inv.id)
+    toast(`${euro(d.balance)} written off for ${fullName(d.patient)}`)
+    setConfirmOff(null)
+    onChanged()
+  }
+
+  if (debtors.length === 0) return null
+
+  return (
+    <div className="card card-pad">
+      <div className="card-title">Debt manager <span className="small muted" style={{ fontWeight: 400 }}>{debtors.length} patient(s) owing · reminders use your Account template (Settings)</span></div>
+      <table className="tbl">
+        <thead><tr><th>Patient</th><th>Balance</th><th>Oldest debt</th><th>Reminders sent</th><th /></tr></thead>
+        <tbody>
+          {debtors.map((d) => (
+            <tr key={d.patient.id}>
+              <td><Link to={`/patients/${d.patient.id}`} style={{ fontWeight: 600, color: 'var(--teal-dark)' }}>{fullName(d.patient)}</Link></td>
+              <td className="mono" style={{ fontWeight: 700, color: 'var(--red)' }}>{euro(d.balance)}</td>
+              <td>
+                {d.days} days
+                {d.days > 60 && <span className="badge b-red" style={{ marginLeft: 6 }}>chase</span>}
+                {d.days > 30 && d.days <= 60 && <span className="badge b-amber" style={{ marginLeft: 6 }}>ageing</span>}
+              </td>
+              <td className="muted">{history[d.patient.id] || 0}</td>
+              <td style={{ textAlign: 'right' }}>
+                <span className="row" style={{ justifyContent: 'flex-end' }}>
+                  <button className="btn sm secondary" onClick={() => remind(d)}>Send reminder</button>
+                  <button className="btn sm ghost" style={{ color: 'var(--red)' }} onClick={() => setConfirmOff(d)}>Write off</button>
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {confirmOff && (
+        <Modal title={`Write off ${euro(confirmOff.balance)}?`} onClose={() => setConfirmOff(null)}>
+          <p className="small" style={{ color: 'var(--ink-60)' }}>
+            {fullName(confirmOff.patient)}'s balance will be cleared as a bad debt. This is recorded as a
+            write-off payment so your revenue reports stay honest. It can't be undone from here.
+          </p>
+          <div className="actions">
+            <button className="btn secondary" onClick={() => setConfirmOff(null)}>Cancel</button>
+            <button className="btn danger" onClick={() => writeOff(confirmOff)}>Write off {euro(confirmOff.balance)}</button>
+          </div>
+        </Modal>
+      )}
+    </div>
   )
 }
 

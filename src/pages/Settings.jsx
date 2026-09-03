@@ -98,6 +98,7 @@ export default function Settings() {
             </div>
 
             <TemplatesCard clinicId={clinicId} />
+            <MessagesCard clinicId={clinicId} />
 
             <CliniciansCard pracs={pracs} clinicId={clinicId} canManage={['owner', 'admin'].includes(role)} onChanged={load} />
           </div>
@@ -340,6 +341,53 @@ function TemplatesCard({ clinicId }) {
           <div className="actions">
             <button className="btn secondary" onClick={() => setEditing(null)}>Cancel</button>
             <button className="btn" onClick={save}>Save template</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+function MessagesCard({ clinicId }) {
+  const [msgs, setMsgs] = useState([])
+  const [editing, setEditing] = useState(null)
+  const toast = useToast()
+  const load = () =>
+    sb.from('dental_message_templates').select('*').eq('clinic_id', clinicId).order('label').then(({ data }) => setMsgs(data || []))
+  useEffect(() => { load() }, [clinicId])
+
+  const save = async () => {
+    const { error } = await sb.from('dental_message_templates').update({ body: editing.body }).eq('id', editing.id)
+    if (error) return toast('Error: ' + error.message)
+    toast('Message template saved')
+    setEditing(null)
+    load()
+  }
+
+  return (
+    <div className="card card-pad">
+      <div className="card-title">Text message templates</div>
+      <div className="grid" style={{ gap: 8 }}>
+        {msgs.map((m) => (
+          <div key={m.id} className="spread" style={{ padding: '8px 12px', background: 'var(--mint-bg)', borderRadius: 10 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{m.label}</div>
+              <div className="small muted" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>{m.body}</div>
+            </div>
+            <button className="btn ghost sm" onClick={() => setEditing({ ...m })}>Edit</button>
+          </div>
+        ))}
+      </div>
+      <p className="small muted" style={{ marginTop: 10 }}>
+        Used by the daily automations, the debt manager and marketing texts. Placeholders: {'{name} {clinic} {phone} {link} {time} {type} {amount}'}
+      </p>
+      {editing && (
+        <Modal title={editing.label} onClose={() => setEditing(null)}>
+          <textarea className="input" rows={5} value={editing.body} onChange={(e) => setEditing((x) => ({ ...x, body: e.target.value }))} />
+          <p className="small muted" style={{ marginTop: 8 }}>Placeholders: {'{name} {clinic} {phone} {link} {time} {type} {amount}'}</p>
+          <div className="actions">
+            <button className="btn secondary" onClick={() => setEditing(null)}>Cancel</button>
+            <button className="btn" disabled={!editing.body.trim()} onClick={save}>Save</button>
           </div>
         </Modal>
       )}
