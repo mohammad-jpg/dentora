@@ -8,6 +8,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
 const DAY_START = 9, DAY_END = 17, SLOT_MIN = 30
+const LEGAL_VERSION = '2026-09-07'
 
 function dublinOffset(dateStr: string): string {
   const probe = new Date(`${dateStr}T12:00:00Z`)
@@ -38,7 +39,8 @@ Deno.serve(async (req) => {
     const { data: caller, error: authErr } = await admin.auth.getUser(token)
 
     if (action === 'signup') {
-      const { full_name, email, phone, password } = body
+      const { full_name, email, phone, password, accept_privacy } = body
+      if (accept_privacy !== true) return json({ error: 'Please confirm you have read the privacy notice.' }, 400)
       if (!full_name?.trim() || !email?.trim() || !password) return json({ error: 'Name, email and password are required.' }, 400)
       if (password.length < 8) return json({ error: 'Password must be at least 8 characters.' }, 400)
       if (!caller?.user || caller.user.email?.toLowerCase() !== email.trim().toLowerCase()) {
@@ -50,6 +52,7 @@ Deno.serve(async (req) => {
       if (pe) return json({ error: pe.message }, 500)
       const { error: ie } = await admin.from('dental_portal_profiles').insert({
         user_id: caller.user.id, full_name: full_name.trim(), phone: phone || null, email: email.trim().toLowerCase(),
+        privacy_accepted_at: new Date().toISOString(), legal_version: LEGAL_VERSION,
       })
       if (ie) return json({ error: ie.message }, 500)
       return json({ ok: true })

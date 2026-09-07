@@ -183,6 +183,7 @@ function PatientAuth({ onHome, onReset }) {
   const [tab, setTab] = useState('signin')
   const [stage, setStage] = useState('form') // form | verify
   const [f, setF] = useState({ full_name: '', phone: '', email: '', password: '' })
+  const [agree, setAgree] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
@@ -201,7 +202,7 @@ function PatientAuth({ onHome, onReset }) {
     setStage('verify')
   }
   const completeSignup = async () => {
-    const { data, error } = await sb.functions.invoke('portal', { body: { action: 'signup', ...f } })
+    const { data, error } = await sb.functions.invoke('portal', { body: { action: 'signup', ...f, accept_privacy: agree } })
     if (error || data?.error) {
       let msg = data?.error || 'Something went wrong — please try again.'
       if (error?.context) { try { msg = (await error.context.json())?.error || msg } catch { /* keep */ } }
@@ -248,7 +249,13 @@ function PatientAuth({ onHome, onReset }) {
               onKeyDown={(e) => e.key === 'Enter' && ok && (tab === 'signin' ? signIn() : signUp())} /></div>
         </div>
         {err && <div className="small" style={{ color: 'var(--red)', marginTop: 10 }}>{err}</div>}
-        <button className="btn" style={{ width: '100%', marginTop: 16, justifyContent: 'center' }} disabled={!ok || busy}
+        {tab === 'signup' && (
+          <label className="row" style={{ gap: 8, alignItems: 'flex-start', marginTop: 12, cursor: 'pointer' }}>
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} style={{ marginTop: 3 }} />
+            <span className="small">I have read the <a href="#/legal/privacy" target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>privacy notice</a>. My dental record belongs to my practice; Dentora holds it on their behalf.</span>
+          </label>
+        )}
+        <button className="btn" style={{ width: '100%', marginTop: 16, justifyContent: 'center' }} disabled={!ok || busy || (tab === 'signup' && !agree)}
           onClick={tab === 'signin' ? signIn : signUp}>
           {busy ? 'One moment…' : tab === 'signin' ? 'Sign in' : 'Create account'}
         </button>
@@ -256,6 +263,7 @@ function PatientAuth({ onHome, onReset }) {
           <button className="btn ghost sm" style={{ width: '100%', marginTop: 6, justifyContent: 'center' }} onClick={onReset}>Forgot password?</button>
         )}
         <button className="btn ghost" style={{ width: '100%', marginTop: 2, justifyContent: 'center' }} onClick={onHome}>← Back</button>
+        <div className="legal-links"><a href="#/legal/privacy">Privacy</a><a href="#/legal/terms">Terms</a><a href="#/legal/dpa">DPA</a><a href="#/legal/security">Security</a></div>
       </div>
     </div>
   )
@@ -295,6 +303,7 @@ function SignIn({ onSignup, onHome, onReset }) {
           New here? Set up your clinic →
         </button>
         <button type="button" className="btn ghost" style={{ width: '100%', marginTop: 2, justifyContent: 'center', color: 'var(--ink-40)' }} onClick={onHome}>← Back</button>
+        <div className="legal-links"><a href="#/legal/privacy">Privacy</a><a href="#/legal/terms">Terms</a><a href="#/legal/dpa">DPA</a><a href="#/legal/security">Security</a></div>
         <div className="small muted" style={{ marginTop: 12, textAlign: 'center' }}>
           Patient data is protected — staff accounts only.
         </div>
@@ -312,6 +321,7 @@ function SignupWizard({ onBack }) {
     owner_name: '', email: '', password: '',
     surgeries: ['Surgery 1'],
   })
+  const [agree, setAgree] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
 
   const canNext = step === 1 ? f.clinic_name.trim().length > 1
@@ -329,7 +339,7 @@ function SignupWizard({ onBack }) {
 
   const finish = async () => {
     setBusy(true); setErr('')
-    const { data, error } = await sb.functions.invoke('signup-clinic', { body: f })
+    const { data, error } = await sb.functions.invoke('signup-clinic', { body: { ...f, accept_terms: agree } })
     if (error || data?.error) {
       let msg = data?.error || 'Something went wrong — please try again.'
       if (error?.context) { try { msg = (await error.context.json())?.error || msg } catch { /* keep msg */ } }
@@ -399,8 +409,14 @@ function SignupWizard({ onBack }) {
 
         {err && <div className="small" style={{ color: 'var(--red)', marginTop: 12 }}>{err}</div>}
 
-        {step !== 'verify' && (
-        <div className="row" style={{ marginTop: 18 }}>
+        {step === 3 && (
+          <label className="row" style={{ gap: 8, alignItems: 'flex-start', margin: '4px 0 12px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} style={{ marginTop: 3 }} />
+            <span className="small">I am authorised to act for this practice and accept the <a href="#/legal/terms" target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>Terms of Service</a> and the <a href="#/legal/dpa" target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>Data Processing Agreement</a> on its behalf. The practice is the data controller for its patients' records.</span>
+          </label>
+        )}
+                {step !== 'verify' && (
+<div className="row" style={{ marginTop: 18 }}>
           <button className="btn secondary" style={{ flex: 1, justifyContent: 'center' }}
             onClick={() => (step === 1 ? onBack() : setStep(step === 3 ? 2 : step - 1))} disabled={busy}>
             {step === 1 ? 'Back to sign in' : 'Back'}
@@ -412,7 +428,7 @@ function SignupWizard({ onBack }) {
             </button>
           )}
           {step === 3 && (
-            <button className="btn" style={{ flex: 1, justifyContent: 'center' }} disabled={busy} onClick={finish}>
+            <button className="btn" style={{ flex: 1, justifyContent: 'center' }} disabled={busy || !agree} onClick={finish}>
               {busy ? 'Setting up…' : 'Create my clinic'}
             </button>
           )}

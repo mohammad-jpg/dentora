@@ -1,3 +1,9 @@
+/* Self-hosted Inter (no request to Google Fonts: no visitor IP leaves the site for fonts). */
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url('./fonts/inter-400.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap; src: url('./fonts/inter-500.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url('./fonts/inter-600.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url('./fonts/inter-700.woff2') format('woff2'); }
+
 :root {
   --accent: #0E6B66;
   --accent-strong: #0A544F;
@@ -496,3 +502,13 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .mk-onboard { margin-top: 22px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); }
 .mk-onboard b { font-size: 15.5px; letter-spacing: -0.01em; }
 .mk-onboard p { max-width: 68ch; }
+
+/* ---------- Legal pages ---------- */
+.legal h2 { font-size: 15px; font-weight: 650; margin: 22px 0 6px; letter-spacing: -0.01em; }
+.legal h3 { font-size: 14px; font-weight: 600; margin: 16px 0 4px; }
+.legal p, .legal li { font-size: 13.5px; line-height: 1.65; color: var(--ink); max-width: 72ch; }
+.legal p { margin: 8px 0; }
+.legal ul { margin: 6px 0; padding-left: 20px; }
+.legal .tbl td, .legal .tbl th { font-size: 13px; }
+.legal-links { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 14px; font-size: 12px; }
+.legal-links a { color: var(--ink-40); }

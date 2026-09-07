@@ -7,6 +7,9 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
 
+const LEGAL_VERSION = '2026-09-07'
+
+// v4: records acceptance of the Terms and DPA (who, when, which version).
 // v3: email verification is mandatory (no unverified createUser fallback); defaults come from
 // immutable snapshot tables; provisioning cleans up after itself on failure.
 Deno.serve(async (req) => {
@@ -14,7 +17,8 @@ Deno.serve(async (req) => {
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
   let clinicId: string | null = null
   try {
-    const { clinic_name, address, phone, owner_name, email, password, surgeries } = await req.json()
+    const { clinic_name, address, phone, owner_name, email, password, surgeries, accept_terms } = await req.json()
+    if (accept_terms !== true) return json({ error: 'Please accept the Terms of Service and Data Processing Agreement on behalf of the practice.' }, 400)
     if (!clinic_name?.trim() || !owner_name?.trim() || !email?.trim() || !password) {
       return json({ error: 'Clinic name, your name, email and password are required.' }, 400)
     }
@@ -34,7 +38,8 @@ Deno.serve(async (req) => {
     const userId = caller.user.id
 
     const { data: clinic, error: ce } = await admin.from('dental_clinics')
-      .insert({ name: clinic_name.trim(), address: address || null, phone: phone || null, email: emailNorm, plan: 'trial' })
+      .insert({ name: clinic_name.trim(), address: address || null, phone: phone || null, email: emailNorm, plan: 'trial',
+        terms_accepted_at: new Date().toISOString(), dpa_accepted_at: new Date().toISOString(), accepted_by: emailNorm, legal_version: LEGAL_VERSION })
       .select().single()
     if (ce) return json({ error: ce.message }, 500)
     clinicId = clinic.id

@@ -10,6 +10,7 @@ import Handover from './pages/Handover.jsx'
 import Portal from './pages/Portal.jsx'
 import CheckIn from './pages/CheckIn.jsx'
 import Kiosk from './pages/Kiosk.jsx'
+import Legal from './pages/Legal.jsx'
 import LabWork from './pages/LabWork.jsx'
 import Ortho from './pages/Ortho.jsx'
 import Endo from './pages/Endo.jsx'
@@ -73,6 +74,7 @@ export default function App() {
   // The waiting-room tablet page lives outside the signed-in app entirely.
   const loc = useLocation()
   if (loc.pathname.startsWith('/kiosk')) return <ToastProvider><Kiosk /></ToastProvider>
+  if (loc.pathname.startsWith('/legal')) return <Routes><Route path="/legal/:doc?" element={<Legal />} /></Routes>
   return (
     <ToastProvider>
       <AuthProvider>

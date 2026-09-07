@@ -312,7 +312,7 @@ export default function Help() {
           </div>
 
           <div id="support" className="card card-pad" style={{ scrollMarginTop: 16 }}>
-            <div className="card-title">Contact support</div>
+            <div className="card-title">Contact support <span className="row" style={{ gap: 10 }}><a href="#/legal/privacy" className="small" style={{ color: 'var(--ink-40)' }}>Privacy</a><a href="#/legal/dpa" className="small" style={{ color: 'var(--ink-40)' }}>DPA</a><a href="#/legal/security" className="small" style={{ color: 'var(--ink-40)' }}>Security</a></span></div>
             <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
               <div style={{ padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 8 }}>
                 <div className="small muted">Phone</div>

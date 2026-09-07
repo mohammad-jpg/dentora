@@ -14,7 +14,8 @@ Live: https://mohammad-jpg.github.io/dentora/ · Demo accounts: [docs/DEMO-ACCOU
 | `supabase/functions/` | Source of every deployed Edge Function (`signup-clinic`, `portal`, `invite-staff`, `manage-staff`, `recall-engine`, `checkin`). |
 | `scripts/rls-test.mjs` | Negative tests run against the live project (`npm run test:rls`). |
 | `bridge/` | Windows `dentora://` protocol helper for launching Romexis / CS Imaging with the current patient. |
-| `docs/` | Audit report, security fix log, demo guide. |
+| `docs/` | Audit report, security fix log, demo guide, GDPR checklist, ROPA, breach/retention/DSAR procedures. |
+| `src/legal.js`, `docs/legal/` | Privacy notice, Terms, DPA, security summary, sub-processors (app page `/#/legal`; `node scripts/export-legal.mjs` regenerates the .md copies). |
 
 ## Backend
 

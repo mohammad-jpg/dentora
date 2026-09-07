@@ -25,11 +25,18 @@ export default function PatientDetail() {
   const [tab, setTab] = useState(() => params.get('tab') || 'Overview')
   const [editing, setEditing] = useState(false)
   const toast = useToast()
-  const { clinic: myClinic } = useClinic()
+  const { clinic: myClinic, isAdmin } = useClinic()
   const TABS = [...BASE_TABS, ...(hasPackage(myClinic, 'ortho') ? ['Ortho'] : []), ...(hasPackage(myClinic, 'endo') ? ['Endo'] : [])]
 
   const load = () => sb.from('dental_patients').select('*').eq('id', id).single().then(({ data }) => setP(data))
   useEffect(() => { load() }, [id])
+  // Accountability: every opening of a patient record is logged (who, when). Admins can review it.
+  useEffect(() => {
+    if (!myClinic?.id) return
+    sb.auth.getUser().then(({ data: { user } }) => {
+      if (user) sb.from('dental_access_log').insert({ clinic_id: myClinic.id, patient_id: id, user_email: user.email, action: 'view' }).then(() => {})
+    })
+  }, [id, myClinic?.id])
   useEffect(() => { const t = params.get('tab'); if (t && TABS.includes(t)) setTab(t) }, [id, params])
   useEffect(() => { if (!TABS.includes(tab)) setTab('Overview') }, [TABS.length])
 
@@ -38,6 +45,15 @@ export default function PatientDetail() {
     if (error) return toast('Error: ' + error.message)
     toast('Patient updated')
     setEditing(false)
+    load()
+  }
+
+  const anonymise = async () => {
+    const sure = window.prompt(`This removes ${p.first_name} ${p.last_name}'s name, date of birth and contact details permanently and keeps the clinical record under a pseudonym for the statutory retention period. It cannot be undone.\n\nType ANONYMISE to confirm:`)
+    if (sure !== 'ANONYMISE') return
+    const { error } = await sb.rpc('dental_anonymise_patient', { p_patient_id: id })
+    if (error) return toast('Error: ' + error.message)
+    toast('Patient anonymised')
     load()
   }
 
@@ -60,6 +76,7 @@ export default function PatientDetail() {
         <div className="row">
           <Link to="/patients" className="btn secondary sm">← All patients</Link>
           <button className="btn sm" onClick={() => setEditing(true)}>Edit details</button>
+          {isAdmin && !p.anonymised_at && <button className="btn ghost sm" style={{ color: 'var(--red)' }} onClick={anonymise} title="Right to erasure: remove identifying details, keep the clinical record pseudonymised">Anonymise</button>}
         </div>
       </div>
       <div className="content">

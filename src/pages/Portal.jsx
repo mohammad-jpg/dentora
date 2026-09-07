@@ -32,6 +32,7 @@ export default function Portal() {
         <Route path="/call/:id" element={<VideoCall />} />
         <Route path="*" element={<PortalHome />} />
       </Routes>
+      <div className="legal-links" style={{ padding: '18px 0 24px' }}><a href="#/legal/privacy">Privacy</a><a href="#/legal/security">Security</a><a href="#/legal/subprocessors">Sub-processors</a></div>
     </div>
   )
 }

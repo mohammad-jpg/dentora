@@ -110,6 +110,8 @@ export default function Settings() {
             <TemplatesCard clinicId={clinicId} />
             <MessagesCard clinicId={clinicId} />
             <ImportCard clinicId={clinicId} />
+            {canManage && <ExportCard clinicId={clinicId} clinic={clinic} />}
+            {canManage && <AccessLogCard clinicId={clinicId} />}
 
             <CliniciansCard pracs={pracs} clinicId={clinicId} canManage={['owner', 'admin'].includes(role)} onChanged={load} />
           </div>
@@ -708,6 +710,97 @@ function RotaCard({ pracs, surgeries }) {
             })]
         ))}
       </div>
+      </div>
+    </div>
+  )
+}
+
+
+// GDPR: full export of the practice's data (portability / exit). Everything RLS lets this user
+// see for the clinic, as one JSON file plus a patients CSV.
+function ExportCard({ clinicId, clinic }) {
+  const [busy, setBusy] = useState(false)
+  const toast = useToast()
+  const CLINIC_TABLES = ['dental_practitioners', 'dental_surgeries', 'dental_rota', 'dental_treatments', 'dental_message_templates', 'dental_note_templates', 'dental_tasks', 'dental_appointments', 'dental_memberships', 'dental_checkin_sessions', 'dental_support_requests']
+  const PATIENT_TABLES = ['dental_chart_entries', 'dental_clinical_notes', 'dental_treatment_plans', 'dental_invoices', 'dental_payments', 'dental_recalls', 'dental_referrals', 'dental_lab_cases', 'dental_imaging_refs', 'dental_comms_log', 'dental_questionnaires', 'dental_bpe_exams', 'dental_perio_exams', 'dental_ortho_cases', 'dental_endo_cases', 'dental_routing_slips']
+  const all = async (table, col, ids) => {
+    const out = []
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await sb.from(table).select('*').in(col, ids.slice(i, i + 200))
+      if (error) throw new Error(`${table}: ${error.message}`)
+      out.push(...(data || []))
+    }
+    return out
+  }
+  const download = (name, text, type) => {
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000)
+  }
+  const run = async () => {
+    setBusy(true)
+    try {
+      const bundle = { exported_at: new Date().toISOString(), clinic, tables: {} }
+      const { data: patients, error: pe } = await sb.from('dental_patients').select('*').eq('clinic_id', clinicId)
+      if (pe) throw pe
+      bundle.tables.dental_patients = patients
+      const ids = patients.map((p) => p.id)
+      for (const t of PATIENT_TABLES) bundle.tables[t] = await all(t, 'patient_id', ids)
+      const { data: prs } = await sb.from('dental_practitioners').select('id').eq('clinic_id', clinicId)
+      for (const t of CLINIC_TABLES) {
+        if (t === 'dental_rota') bundle.tables[t] = await all(t, 'practitioner_id', (prs || []).map((p) => p.id))
+        else { const { data } = await sb.from(t).select('*').eq('clinic_id', clinicId); bundle.tables[t] = data || [] }
+      }
+      const cases = bundle.tables.dental_ortho_cases.map((c) => c.id)
+      bundle.tables.dental_ortho_visits = await all('dental_ortho_visits', 'case_id', cases)
+      bundle.tables.dental_ortho_instalments = await all('dental_ortho_instalments', 'case_id', cases)
+      const stamp = new Date().toISOString().slice(0, 10)
+      download(`dentora-export-${stamp}.json`, JSON.stringify(bundle, null, 2), 'application/json')
+      const cols = ['id', 'first_name', 'last_name', 'dob', 'phone', 'email', 'address', 'scheme', 'medical_alerts', 'recall_months', 'archived', 'created_at']
+      const csv = [cols.join(','), ...patients.map((p) => cols.map((c) => `"${String(p[c] ?? '').replaceAll('"', '""')}"`).join(','))].join('\n')
+      download(`dentora-patients-${stamp}.csv`, csv, 'text/csv')
+      const rows = Object.values(bundle.tables).reduce((n, t) => n + t.length, 0)
+      toast(`Exported ${patients.length} patients and ${rows} records`)
+      await sb.from('dental_access_log').insert({ clinic_id: clinicId, patient_id: '00000000-0000-0000-0000-000000000000', action: 'export', user_email: (await sb.auth.getUser()).data.user?.email })
+    } catch (e) { toast('Export failed: ' + e.message) }
+    setBusy(false)
+  }
+  return (
+    <div className="card card-pad">
+      <div className="card-title">Export practice data</div>
+      <p className="small muted" style={{ margin: '0 0 10px' }}>Everything in one JSON file (all tables) plus a patients CSV. Your data is yours: use this to move systems, to answer a subject access request, or for your own backups. Exports are recorded in the access log.</p>
+      <button className="btn secondary" disabled={busy} onClick={run}>{busy ? 'Exporting…' : 'Download full export'}</button>
+    </div>
+  )
+}
+
+// GDPR accountability: who opened which patient record, when. Owner/admin only.
+function AccessLogCard({ clinicId }) {
+  const [rows, setRows] = useState([])
+  const [q, setQ] = useState('')
+  useEffect(() => {
+    sb.from('dental_access_log').select('id, at, user_email, action, patient:dental_patients(first_name,last_name)')
+      .eq('clinic_id', clinicId).order('at', { ascending: false }).limit(200).then(({ data }) => setRows(data || []))
+  }, [clinicId])
+  const shown = rows.filter((r) => !q || `${r.user_email} ${r.patient?.first_name} ${r.patient?.last_name} ${r.action}`.toLowerCase().includes(q.toLowerCase()))
+  return (
+    <div className="card card-pad">
+      <div className="card-title">Access log <span className="small muted" style={{ fontWeight: 400 }}>last 200 · kept 2 years</span></div>
+      <input className="input" placeholder="Filter by staff, patient or action…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 8 }} />
+      <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+        <table className="tbl" style={{ fontSize: 12.5 }}>
+          <tbody>
+            {shown.map((r) => (
+              <tr key={r.id}>
+                <td className="mono muted" style={{ whiteSpace: 'nowrap' }}>{new Date(r.at).toLocaleString('en-IE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                <td>{r.user_email}</td>
+                <td>{r.action}</td>
+                <td>{r.patient ? `${r.patient.first_name} ${r.patient.last_name}` : '—'}</td>
+              </tr>
+            ))}
+            {shown.length === 0 && <tr><td className="muted">No entries yet.</td></tr>}
+          </tbody>
+        </table>
       </div>
     </div>
   )

@@ -32,7 +32,7 @@ const FAQS = [
   ['How long does setup actually take?', 'About a minute. The signup wizard creates your clinic, surgeries, rota and an editable Irish fee schedule automatically. Add your team from Settings and you can take your first online booking the same morning.'],
   ['Do I need new hardware?', 'No. Dentora runs in the browser on whatever you have — reception PC, surgery PC, iPad in the waiting room, your phone on the sofa. Nothing to install or maintain.'],
   ['What about my existing patient data?', 'We migrate it for you. For the first ten practices that is free and done personally by the founder: an export from your current system, patients and history brought across, your team, rooms and fees set up, and a hand-holding first fortnight. Your data stays yours — export it any time, no lock-in.'],
-  ['Is patient data safe?', 'Data is hosted in the EU with per-clinic isolation enforced at the database level — one practice can never see another’s records. Staff access is per-login with roles, and backups run daily.'],
+  ['Is patient data safe?', 'Data is hosted in Ireland (AWS Dublin) with per-clinic isolation enforced at the database level — one practice can never see another’s records. Staff access is per-login with roles, every opening of a patient record is logged, clinical records are append-only, and backups run daily. A written Data Processing Agreement is accepted at signup; the security summary, privacy notice and sub-processor list are published under Legal in the footer.'],
   ['How is this so much cheaper than the big names?', 'Flat per-practice pricing with everything included. No per-surgery multipliers, no per-user fees, no add-on modules for the portal or video — the features the incumbents sell separately are just… in it. The only extras are the optional Orthodontics and Endodontics plug-ins, which most general practices never need.'],
   ['Can I add the specialty modules later?', 'Yes. Orthodontics (+€' + PACKAGES.ortho.price + '/mo) and Endodontics (+€' + PACKAGES.endo.price + '/mo) are switched on or off by an owner or admin from Settings, take effect immediately, and are billed monthly alongside your plan.'],
 ]
@@ -197,7 +197,11 @@ export default function Marketing({ onTrial, onStaff, onPatient }) {
 
       <footer className="mk-foot">
         <span>© {new Date().getFullYear()} Dentora · Dublin, Ireland · <a href={`tel:${SUPPORT_PHONE_TEL}`} style={{ color: 'inherit' }}>{SUPPORT_PHONE}</a> · <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: 'inherit' }}>{SUPPORT_EMAIL}</a></span>
-        <span className="row" style={{ gap: 18 }}>
+        <span className="row" style={{ gap: 18, flexWrap: 'wrap' }}>
+          <a href="#/legal/privacy" style={{ fontWeight: 500, color: 'var(--ink-40)' }}>Privacy</a>
+          <a href="#/legal/terms" style={{ fontWeight: 500, color: 'var(--ink-40)' }}>Terms</a>
+          <a href="#/legal/dpa" style={{ fontWeight: 500, color: 'var(--ink-40)' }}>DPA</a>
+          <a href="#/legal/security" style={{ fontWeight: 500, color: 'var(--ink-40)' }}>Security</a>
           <a onClick={onPatient} style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--teal-dark)' }}>Patient booking</a>
           <a onClick={onStaff} style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--teal-dark)' }}>Practice sign in</a>
         </span>

@@ -93,10 +93,14 @@ export default function Patients() {
 }
 
 // Panara's "marketing using lists and SMS", improved: filter above, one message to the whole list.
-function BlastModal({ patients, clinic, clinicId, onClose }) {
+function BlastModal({ patients: matched, clinic, clinicId, onClose }) {
   const [body, setBody] = useState('')
   const [busy, setBusy] = useState(false)
   const toast = useToast()
+  // Marketing texts only go to patients who have opted in (GDPR / ePrivacy). Reminders and recalls
+  // are service messages and are handled by the recall engine, not here.
+  const patients = matched.filter((p) => p.sms_marketing_consent && p.phone)
+  const skipped = matched.length - patients.length
 
   useEffect(() => {
     sb.from('dental_message_templates').select('body').eq('clinic_id', clinicId).eq('key', 'marketing').maybeSingle()
@@ -120,7 +124,8 @@ function BlastModal({ patients, clinic, clinicId, onClose }) {
   return (
     <Modal title={`Text ${patients.length} patient(s)`} onClose={onClose}>
       <p className="small muted" style={{ marginBottom: 10 }}>
-        Goes to everyone currently matching your search and filters. Placeholders: {'{name} {clinic} {phone} {link}'}
+        Goes to patients matching your search and filters who have opted in to marketing texts and have a phone number.
+        {skipped > 0 && <> <b>{skipped}</b> matching patient(s) will be skipped because they have not opted in.</>} Placeholders: {'{name} {clinic} {phone} {link}'}
       </p>
       <textarea className="input" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
       <div className="actions">
@@ -145,11 +150,13 @@ export function PatientModal({ patient = {}, onSave, onClose }) {
     scheme: patient.scheme || 'private',
     recall_months: patient.recall_months ?? 6,
     archived: patient.archived || false,
+    sms_marketing_consent: patient.sms_marketing_consent || false,
   })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
   const submit = () => {
     if (!form.first_name || !form.last_name) return
-    onSave({ ...form, dob: form.dob || null })
+    const consentChanged = form.sms_marketing_consent !== (patient.sms_marketing_consent || false)
+    onSave({ ...form, dob: form.dob || null, ...(consentChanged ? { sms_marketing_consent_at: form.sms_marketing_consent ? new Date().toISOString() : null } : {}) })
   }
   return (
     <Modal title={patient.id ? 'Edit patient' : 'New patient'} onClose={onClose}>
@@ -178,6 +185,10 @@ export function PatientModal({ patient = {}, onSave, onClose }) {
         <div style={{ gridColumn: '1/-1' }}><label className="field">Email</label><input className="input" value={form.email} onChange={set('email')} /></div>
         <div style={{ gridColumn: '1/-1' }}><label className="field">Address</label><input className="input" value={form.address} onChange={set('address')} /></div>
         <div style={{ gridColumn: '1/-1' }}><label className="field">Medical alerts</label><input className="input" value={form.medical_alerts} onChange={set('medical_alerts')} placeholder="Allergies, medications, conditions…" /></div>
+        <label className="row" style={{ gridColumn: '1/-1', cursor: 'pointer', gap: 8, alignItems: 'flex-start' }}>
+          <input type="checkbox" checked={form.sms_marketing_consent} onChange={(e) => setForm((f) => ({ ...f, sms_marketing_consent: e.target.checked }))} style={{ marginTop: 3 }} />
+          <span className="small">Patient has agreed to receive marketing texts (offers, news). Appointment reminders and recalls are sent regardless, as service messages. Record the date and how consent was given in their notes.</span>
+        </label>
         {patient.id && (
           <label className="row" style={{ gridColumn: '1/-1', cursor: 'pointer', gap: 8 }}>
             <input type="checkbox" checked={form.archived} onChange={(e) => setForm((f) => ({ ...f, archived: e.target.checked }))} />
