@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { PACKAGES } from './specialty/packages.js'
+import { SUPPORT_EMAIL, SUPPORT_PHONE, SUPPORT_PHONE_TEL } from './support.js'
 import { sb } from './supabase.js'
 import { Modal, ToothMark } from './ui.jsx'
 
@@ -31,7 +33,8 @@ const FAQS = [
   ['Do I need new hardware?', 'No. Dentora runs in the browser on whatever you have — reception PC, surgery PC, iPad in the waiting room, your phone on the sofa. Nothing to install or maintain.'],
   ['What about my existing patient data?', 'Start fresh in minutes, or we import your patient list from a spreadsheet export with you during onboarding. Your data stays yours — export it any time, no lock-in.'],
   ['Is patient data safe?', 'Data is hosted in the EU with per-clinic isolation enforced at the database level — one practice can never see another’s records. Staff access is per-login with roles, and backups run daily.'],
-  ['How is this so much cheaper than the big names?', 'Flat per-practice pricing with everything included. No per-surgery multipliers, no per-user fees, no add-on modules for the portal or video — the features the incumbents sell separately are just… in it.'],
+  ['How is this so much cheaper than the big names?', 'Flat per-practice pricing with everything included. No per-surgery multipliers, no per-user fees, no add-on modules for the portal or video — the features the incumbents sell separately are just… in it. The only extras are the optional Orthodontics and Endodontics plug-ins, which most general practices never need.'],
+  ['Can I add the specialty modules later?', 'Yes. Orthodontics (+€' + PACKAGES.ortho.price + '/mo) and Endodontics (+€' + PACKAGES.endo.price + '/mo) are switched on or off by an owner or admin from Settings, take effect immediately, and are billed monthly alongside your plan.'],
 ]
 
 export default function Marketing({ onTrial, onStaff, onPatient }) {
@@ -99,7 +102,7 @@ export default function Marketing({ onTrial, onStaff, onPatient }) {
 
       <section className="mk-section" id="pricing" style={{ paddingTop: 0 }}>
         <h2>Flat, honest pricing</h2>
-        <p className="lead">Per practice — unlimited users, every feature included. 30 days free on every plan. Specialty packages for orthodontics (+€129/mo) and endodontics (+€89/mo) can be added to any plan.</p>
+        <p className="lead">Per practice — unlimited users, every feature included. 30 days free on every plan. Specialty modules are optional plug-in add-ons, priced below.</p>
         <div className="mk-price-grid">
           <div className="mk-price">
             <div className="who">Solo</div>
@@ -138,6 +141,24 @@ export default function Marketing({ onTrial, onStaff, onPatient }) {
             <button className="btn secondary" onClick={() => setDemo(true)}>Talk to us</button>
           </div>
         </div>
+
+        <div className="mk-addons">
+          <div className="mk-addons-head">
+            <h3>Plug-in add-ons</h3>
+            <p className="small muted">Specialist modules you switch on from Settings when you need them, billed monthly on top of any plan. Turn them off any time.</p>
+          </div>
+          <div className="mk-addons-grid">
+            {Object.values(PACKAGES).map((p) => (
+              <div key={p.key} className="mk-addon">
+                <div className="spread" style={{ alignItems: 'baseline' }}>
+                  <b>{p.name}</b>
+                  <span className="mk-addon-price">+€{p.price}<small>/mo</small></span>
+                </div>
+                <p className="small muted" style={{ marginTop: 6, lineHeight: 1.6 }}>{p.blurb}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="mk-section" id="faq" style={{ paddingTop: 0 }}>
@@ -165,7 +186,7 @@ export default function Marketing({ onTrial, onStaff, onPatient }) {
       </section>
 
       <footer className="mk-foot">
-        <span>© {new Date().getFullYear()} Dentora · Dublin, Ireland</span>
+        <span>© {new Date().getFullYear()} Dentora · Dublin, Ireland · <a href={`tel:${SUPPORT_PHONE_TEL}`} style={{ color: 'inherit' }}>{SUPPORT_PHONE}</a> · <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: 'inherit' }}>{SUPPORT_EMAIL}</a></span>
         <span className="row" style={{ gap: 18 }}>
           <a onClick={onPatient} style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--teal-dark)' }}>Patient booking</a>
           <a onClick={onStaff} style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--teal-dark)' }}>Practice sign in</a>

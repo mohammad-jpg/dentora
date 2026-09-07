@@ -123,7 +123,10 @@ export default function Ortho() {
                   return <button key={k} className={filter === k ? 'active' : ''} onClick={() => setFilter(k)}>{l}{n ? <span className="muted" style={{ marginLeft: 5, fontWeight: 500 }}>{n}</span> : null}</button>
                 })}
               </div>
-              <input className="input" style={{ width: 220 }} placeholder="Search patient…" value={q} onChange={(e) => setQ(e.target.value)} />
+              <span className="row" style={{ gap: 8 }}>
+                <input className="input" style={{ width: 220 }} placeholder="Search patient…" value={q} onChange={(e) => setQ(e.target.value)} />
+                <button className="btn secondary" style={{ whiteSpace: 'nowrap' }} onClick={() => setPicking(true)}>+ Add patient</button>
+              </span>
             </div>
             <table className="tbl" style={{ marginTop: 8 }}>
               <thead><tr><th>Patient</th><th>Appliance</th><th>Status</th><th>Progress</th><th>Next visit</th><th>Plan</th><th></th></tr></thead>

@@ -483,3 +483,12 @@ table.tbl { width: 100%; border-collapse: collapse; }
   .mk-hero { grid-template-columns: 1fr; }
   .mk-head nav a:not(.btn) { display: none; }
 }
+
+/* ---------- Marketing: plug-in add-ons ---------- */
+.mk-addons { margin-top: 28px; padding: 22px 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface, #fff); }
+.mk-addons-head h3 { margin: 0; font-size: 17px; font-weight: 650; letter-spacing: -0.015em; }
+.mk-addons-head p { margin: 4px 0 0; max-width: 62ch; }
+.mk-addons-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 16px; }
+.mk-addon { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; }
+.mk-addon-price { font-weight: 650; font-size: 18px; letter-spacing: -0.02em; white-space: nowrap; }
+.mk-addon-price small { font-size: 12px; font-weight: 500; color: var(--ink-40); }

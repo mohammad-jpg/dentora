@@ -195,3 +195,15 @@ alter table public.dental_default_templates enable row level security;
 alter table public.dental_clinics
   add column if not exists plan text not null default 'trial',
   add column if not exists trial_ends_at timestamptz default (now() + interval '30 days');
+
+-- 9. Support requests (applied 2026-09-07 as "support_requests") -------------------------------
+create table if not exists public.dental_support_requests (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid references public.dental_clinics(id) on delete set null,
+  name text, email text not null, phone text, topic text, message text not null,
+  page text, status text not null default 'open', created_at timestamptz default now());
+alter table public.dental_support_requests enable row level security;
+create policy member_insert on public.dental_support_requests for insert to authenticated
+  with check (clinic_id is null or clinic_id in (select public.dental_my_clinics()));
+create policy member_read on public.dental_support_requests for select to authenticated
+  using (clinic_id in (select public.dental_my_clinics()));
