@@ -31,7 +31,7 @@ const FEATURES = [
 const FAQS = [
   ['How long does setup actually take?', 'About a minute. The signup wizard creates your clinic, surgeries, rota and an editable Irish fee schedule automatically. Add your team from Settings and you can take your first online booking the same morning.'],
   ['Do I need new hardware?', 'No. Dentora runs in the browser on whatever you have — reception PC, surgery PC, iPad in the waiting room, your phone on the sofa. Nothing to install or maintain.'],
-  ['What about my existing patient data?', 'Start fresh in minutes, or we import your patient list from a spreadsheet export with you during onboarding. Your data stays yours — export it any time, no lock-in.'],
+  ['What about my existing patient data?', 'We migrate it for you. For the first ten practices that is free and done personally by the founder: an export from your current system, patients and history brought across, your team, rooms and fees set up, and a hand-holding first fortnight. Your data stays yours — export it any time, no lock-in.'],
   ['Is patient data safe?', 'Data is hosted in the EU with per-clinic isolation enforced at the database level — one practice can never see another’s records. Staff access is per-login with roles, and backups run daily.'],
   ['How is this so much cheaper than the big names?', 'Flat per-practice pricing with everything included. No per-surgery multipliers, no per-user fees, no add-on modules for the portal or video — the features the incumbents sell separately are just… in it. The only extras are the optional Orthodontics and Endodontics plug-ins, which most general practices never need.'],
   ['Can I add the specialty modules later?', 'Yes. Orthodontics (+€' + PACKAGES.ortho.price + '/mo) and Endodontics (+€' + PACKAGES.endo.price + '/mo) are switched on or off by an owner or admin from Settings, take effect immediately, and are billed monthly alongside your plan.'],
@@ -140,6 +140,16 @@ export default function Marketing({ onTrial, onStaff, onPatient }) {
             </ul>
             <button className="btn secondary" onClick={() => setDemo(true)}>Talk to us</button>
           </div>
+        </div>
+
+        <div className="mk-onboard">
+          <div>
+            <b>Migration and onboarding: free for the first 10 practices.</b>
+            <p className="small muted" style={{ margin: '4px 0 0', lineHeight: 1.6 }}>
+              Done personally by the founder, not a helpdesk. We take an export from your current system, bring your patients and history across, set up your team, rooms and fee schedule, and stay on hand for the first weeks. After the first ten, onboarding is €750.
+            </p>
+          </div>
+          <button className="btn" onClick={() => setDemo(true)}>Claim a place</button>
         </div>
 
         <div className="mk-addons">

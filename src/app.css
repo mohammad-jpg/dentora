@@ -492,3 +492,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .mk-addon { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; }
 .mk-addon-price { font-weight: 650; font-size: 18px; letter-spacing: -0.02em; white-space: nowrap; }
 .mk-addon-price small { font-size: 12px; font-weight: 500; color: var(--ink-40); }
+
+.mk-onboard { margin-top: 22px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); }
+.mk-onboard b { font-size: 15.5px; letter-spacing: -0.01em; }
+.mk-onboard p { max-width: 68ch; }
