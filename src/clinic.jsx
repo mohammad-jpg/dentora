@@ -10,7 +10,12 @@ export function ClinicProvider({ children }) {
   const [state, setState] = useState({ loading: true, clinic: null, role: null })
 
   const load = async () => {
-    const { data: ms } = await sb.from('dental_memberships').select('clinic_id, role').limit(1)
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) return setState({ loading: false, clinic: null, role: null })
+    // dental_memberships is also visible for colleagues at a shared clinic (for the Team
+    // card), so this must filter to the signed-in user's own row explicitly -- otherwise
+    // .limit(1) can non-deterministically return a colleague's clinic_id/role instead.
+    const { data: ms } = await sb.from('dental_memberships').select('clinic_id, role').eq('user_id', user.id).limit(1)
     const m = ms?.[0]
     if (!m) return setState({ loading: false, clinic: null, role: null })
     const { data: clinic } = await sb.from('dental_clinics').select('*').eq('id', m.clinic_id).single()

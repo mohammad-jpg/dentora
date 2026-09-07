@@ -46,7 +46,12 @@ export default function Settings() {
   const renameSurgery = async (s, name) => {
     if (!name.trim() || name === s.name) return
     await sb.from('dental_surgeries').update({ name: name.trim() }).eq('id', s.id)
-    await sb.from('dental_rota').update({ room: name.trim() }).eq('room', s.name)
+    // Rota rows carry a free-text room name with no clinic_id of their own, so this must be
+    // scoped to this clinic's practitioners explicitly -- otherwise a rename here can also
+    // rewrite another clinic's rota rows that happen to share the same generic room name
+    // (e.g. "Surgery 1"). RLS now enforces the same clinic boundary as a second layer.
+    const pracIds = pracs.map((p) => p.id)
+    if (pracIds.length) await sb.from('dental_rota').update({ room: name.trim() }).eq('room', s.name).in('practitioner_id', pracIds)
     load()
   }
   const removeSurgery = async (s) => {
