@@ -10,15 +10,68 @@ export const APPLIANCES = {
   functional: 'Functional appliance',
   retainers: 'Retainers only',
 }
+export const APPLIANCE_SHORT = {
+  fixed_both: 'Fixed U+L', fixed_upper: 'Fixed upper', fixed_lower: 'Fixed lower',
+  aligners: 'Aligners', functional: 'Functional', retainers: 'Retainers',
+}
 export const ORTHO_STATUS = {
   consult: ['Consultation', 'b-gray'], records: ['Records taken', 'b-blue'], active: ['Active treatment', 'b-teal'],
   retention: ['Retention', 'b-violet'], completed: ['Completed', 'b-green'],
 }
+export const OPEN_ORTHO = ['consult', 'records', 'active', 'retention']
 
 export function orthoProgress(c) {
   if (!c.start_date || !c.planned_months) return 0
   const months = (Date.now() - new Date(c.start_date).getTime()) / (30.44 * 86400000)
   return Math.max(0, Math.min(100, Math.round((months / c.planned_months) * 100)))
+}
+
+// Date the next adjustment is due, from the most recent visit + its "next in N weeks".
+export function nextVisitDue(lastVisit) {
+  if (!lastVisit?.visit_date || !lastVisit.next_weeks) return null
+  const d = new Date(lastVisit.visit_date)
+  d.setDate(d.getDate() + Number(lastVisit.next_weeks) * 7)
+  return d.toISOString().slice(0, 10)
+}
+
+export const newOrthoForm = () => ({
+  appliance: 'fixed_both', status: 'consult', start_date: '', planned_months: 18, iotn: '', overjet_mm: '', overbite: '',
+  aligner_total: '', aligner_current: '', plan_total: '', deposit: '', instalment: '', instalments_count: '', notes: '',
+})
+
+// Insert or update a case; generates the monthly instalment schedule for new cases. Returns { data, error }.
+export async function saveOrthoCase(patientId, form, existingId) {
+  const payload = {
+    ...form, patient_id: patientId,
+    start_date: form.start_date || null, planned_months: Number(form.planned_months) || null,
+    overjet_mm: form.overjet_mm === '' || form.overjet_mm == null ? null : Number(form.overjet_mm),
+    aligner_total: form.aligner_total === '' || form.aligner_total == null ? null : Number(form.aligner_total),
+    aligner_current: form.aligner_current === '' || form.aligner_current == null ? null : Number(form.aligner_current),
+    plan_total: Number(form.plan_total) || 0, deposit: Number(form.deposit) || 0,
+    instalment: Number(form.instalment) || 0, instalments_count: Number(form.instalments_count) || 0,
+  }
+  delete payload.id; delete payload.created_at; delete payload.patient
+  const q = existingId
+    ? sb.from('dental_ortho_cases').update(payload).eq('id', existingId).select().single()
+    : sb.from('dental_ortho_cases').insert(payload).select().single()
+  const { data, error } = await q
+  if (error) return { error }
+  if (!existingId && data && payload.instalments_count > 0 && payload.instalment > 0) {
+    const first = payload.start_date ? new Date(payload.start_date) : new Date()
+    const rows = Array.from({ length: payload.instalments_count }, (_, i) => {
+      const d = new Date(first); d.setMonth(d.getMonth() + i + 1)
+      return { case_id: data.id, due_date: d.toISOString().slice(0, 10), amount: payload.instalment }
+    })
+    await sb.from('dental_ortho_instalments').insert(rows)
+  }
+  return { data }
+}
+
+// Mark an instalment paid and post a matching payment to the patient's ledger.
+export async function recordInstalment(inst, patientId, method = 'card') {
+  const { error } = await sb.from('dental_payments').insert({ patient_id: patientId, amount: inst.amount, method })
+  if (error) return { error }
+  return sb.from('dental_ortho_instalments').update({ paid_on: new Date().toISOString().slice(0, 10) }).eq('id', inst.id)
 }
 
 export default function OrthoTab({ patientId, patient }) {
@@ -33,27 +86,8 @@ export default function OrthoTab({ patientId, patient }) {
   useEffect(() => { load() }, [patientId])
 
   const save = async (form) => {
-    const payload = {
-      ...form, patient_id: patientId,
-      start_date: form.start_date || null, planned_months: Number(form.planned_months) || null,
-      overjet_mm: form.overjet_mm === '' ? null : Number(form.overjet_mm),
-      aligner_total: form.aligner_total === '' ? null : Number(form.aligner_total),
-      aligner_current: form.aligner_current === '' ? null : Number(form.aligner_current),
-      plan_total: Number(form.plan_total) || 0, deposit: Number(form.deposit) || 0,
-      instalment: Number(form.instalment) || 0, instalments_count: Number(form.instalments_count) || 0,
-    }
-    const q = editing?.id ? sb.from('dental_ortho_cases').update(payload).eq('id', editing.id) : sb.from('dental_ortho_cases').insert(payload).select().single()
-    const { data, error } = await q
+    const { error } = await saveOrthoCase(patientId, form, editing?.id)
     if (error) return toast('Error: ' + error.message)
-    // (re)generate instalment schedule for new cases with a plan
-    if (!editing?.id && data && payload.instalments_count > 0 && payload.instalment > 0) {
-      const first = payload.start_date ? new Date(payload.start_date) : new Date()
-      const rows = Array.from({ length: payload.instalments_count }, (_, i) => {
-        const d = new Date(first); d.setMonth(d.getMonth() + i + 1)
-        return { case_id: data.id, due_date: d.toISOString().slice(0, 10), amount: payload.instalment }
-      })
-      await sb.from('dental_ortho_instalments').insert(rows)
-    }
     toast(editing?.id ? 'Case updated' : 'Ortho case opened')
     setEditing(null)
     load()
@@ -63,9 +97,7 @@ export default function OrthoTab({ patientId, patient }) {
     <div className="grid" style={{ gap: 14 }}>
       <div className="spread">
         <span className="muted small">{cases.length} case(s)</span>
-        <button className="btn" onClick={() => setEditing({ appliance: 'fixed_both', status: 'consult', start_date: '', planned_months: 18, iotn: '', overjet_mm: '', overbite: '', aligner_total: '', aligner_current: '', plan_total: '', deposit: '', instalment: '', instalments_count: '', notes: '' })}>
-          + New ortho case
-        </button>
+        <button className="btn" onClick={() => setEditing(newOrthoForm())}>+ New ortho case</button>
       </div>
       {cases.map((c) => (
         <OrthoCase key={c.id} c={c} patient={patient} expanded={open === c.id} onToggle={() => setOpen(open === c.id ? null : c.id)} onEdit={() => setEditing({ ...c })} onChanged={load} />
@@ -76,19 +108,10 @@ export default function OrthoTab({ patientId, patient }) {
   )
 }
 
-function OrthoCase({ c, expanded, onToggle, onEdit, onChanged }) {
-  const [visits, setVisits] = useState([])
-  const [inst, setInst] = useState([])
-  const [addingVisit, setAddingVisit] = useState(false)
-  const [v, setV] = useState({ visit_date: new Date().toISOString().slice(0, 10), archwire_upper: '', archwire_lower: '', elastics: '', aligner_no: '', note: '', next_weeks: 6 })
+// Inline visit logger. Used inside the patient tab and (wrapped in a Modal) on the Orthodontics page.
+export function OrthoVisitForm({ c, onSaved, onCancel }) {
+  const [v, setV] = useState({ visit_date: new Date().toISOString().slice(0, 10), archwire_upper: '', archwire_lower: '', elastics: '', aligner_no: c.appliance === 'aligners' && c.aligner_current ? c.aligner_current + 1 : '', note: '', next_weeks: 6 })
   const toast = useToast()
-  const [label, cls] = ORTHO_STATUS[c.status] || [c.status, 'b-gray']
-
-  const load = () => {
-    sb.from('dental_ortho_visits').select('*').eq('case_id', c.id).order('visit_date', { ascending: false }).then(({ data }) => setVisits(data || []))
-    sb.from('dental_ortho_instalments').select('*').eq('case_id', c.id).order('due_date').then(({ data }) => setInst(data || []))
-  }
-  useEffect(() => { if (expanded) load() }, [expanded, c.id])
 
   const addVisit = async () => {
     const { error } = await sb.from('dental_ortho_visits').insert({
@@ -98,14 +121,49 @@ function OrthoCase({ c, expanded, onToggle, onEdit, onChanged }) {
     if (error) return toast('Error: ' + error.message)
     if (v.aligner_no !== '') await sb.from('dental_ortho_cases').update({ aligner_current: Number(v.aligner_no) }).eq('id', c.id)
     toast('Visit logged')
-    setAddingVisit(false)
-    setV((x) => ({ ...x, archwire_upper: '', archwire_lower: '', elastics: '', aligner_no: '', note: '' }))
-    load(); onChanged()
+    onSaved()
   }
 
+  return (
+    <div className="grid" style={{ gap: 8 }}>
+      <div className="form-grid">
+        <div><label className="field">Date</label><input type="date" className="input" value={v.visit_date} onChange={(e) => setV((x) => ({ ...x, visit_date: e.target.value }))} /></div>
+        <div><label className="field">Next visit (weeks)</label><input type="number" className="input" value={v.next_weeks} onChange={(e) => setV((x) => ({ ...x, next_weeks: e.target.value }))} /></div>
+        {c.appliance === 'aligners' ? (
+          <div><label className="field">Aligner tray no.</label><input type="number" className="input" value={v.aligner_no} onChange={(e) => setV((x) => ({ ...x, aligner_no: e.target.value }))} /></div>
+        ) : (
+          <>
+            <div><label className="field">Archwire upper</label><input className="input" placeholder="e.g. 0.014 NiTi" value={v.archwire_upper} onChange={(e) => setV((x) => ({ ...x, archwire_upper: e.target.value }))} /></div>
+            <div><label className="field">Archwire lower</label><input className="input" placeholder="e.g. 19×25 SS" value={v.archwire_lower} onChange={(e) => setV((x) => ({ ...x, archwire_lower: e.target.value }))} /></div>
+          </>
+        )}
+        <div><label className="field">Elastics</label><input className="input" placeholder="e.g. Class II 3/16 4.5oz" value={v.elastics} onChange={(e) => setV((x) => ({ ...x, elastics: e.target.value }))} /></div>
+      </div>
+      <input className="input" placeholder="Note (oral hygiene, breakages, compliance…)" value={v.note} onChange={(e) => setV((x) => ({ ...x, note: e.target.value }))} />
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <button className="btn secondary sm" onClick={onCancel}>Cancel</button>
+        <button className="btn sm" onClick={addVisit}>Save visit</button>
+      </div>
+    </div>
+  )
+}
+
+function OrthoCase({ c, expanded, onToggle, onEdit, onChanged }) {
+  const [visits, setVisits] = useState([])
+  const [inst, setInst] = useState([])
+  const [addingVisit, setAddingVisit] = useState(false)
+  const toast = useToast()
+  const [label, cls] = ORTHO_STATUS[c.status] || [c.status, 'b-gray']
+
+  const load = () => {
+    sb.from('dental_ortho_visits').select('*').eq('case_id', c.id).order('visit_date', { ascending: false }).then(({ data }) => setVisits(data || []))
+    sb.from('dental_ortho_instalments').select('*').eq('case_id', c.id).order('due_date').then(({ data }) => setInst(data || []))
+  }
+  useEffect(() => { if (expanded) load() }, [expanded, c.id])
+
   const markPaid = async (i) => {
-    await sb.from('dental_payments').insert({ patient_id: c.patient_id, amount: i.amount, method: 'card' })
-    await sb.from('dental_ortho_instalments').update({ paid_on: new Date().toISOString().slice(0, 10) }).eq('id', i.id)
+    const { error } = await recordInstalment(i, c.patient_id)
+    if (error) return toast('Error: ' + error.message)
     toast(`Instalment of ${euro(i.amount)} recorded`)
     load()
   }
@@ -114,6 +172,7 @@ function OrthoCase({ c, expanded, onToggle, onEdit, onChanged }) {
   const paid = inst.filter((i) => i.paid_on).reduce((s, i) => s + Number(i.amount), 0)
   const overdue = inst.filter((i) => !i.paid_on && i.due_date < today)
   const progress = orthoProgress(c)
+  const due = nextVisitDue(visits[0])
 
   return (
     <div className="card card-pad">
@@ -123,6 +182,7 @@ function OrthoCase({ c, expanded, onToggle, onEdit, onChanged }) {
           <div className="small muted">
             {c.start_date ? `Started ${fmtDate(c.start_date)} · ` : ''}{c.planned_months ? `${c.planned_months} months planned` : ''}
             {c.appliance === 'aligners' && c.aligner_total ? ` · tray ${c.aligner_current || 0} of ${c.aligner_total}` : ''}
+            {due ? ` · next visit ${fmtDate(due)}` : ''}
           </div>
         </div>
         <div className="row">
@@ -156,25 +216,8 @@ function OrthoCase({ c, expanded, onToggle, onEdit, onChanged }) {
               <button className="btn sm secondary" onClick={() => setAddingVisit(true)}>+ Log visit</button>
             </div>
             {addingVisit && (
-              <div className="grid" style={{ gap: 8, padding: 12, background: 'var(--mint-bg)', borderRadius: 8, marginBottom: 10 }}>
-                <div className="form-grid">
-                  <div><label className="field">Date</label><input type="date" className="input" value={v.visit_date} onChange={(e) => setV((x) => ({ ...x, visit_date: e.target.value }))} /></div>
-                  <div><label className="field">Next visit (weeks)</label><input type="number" className="input" value={v.next_weeks} onChange={(e) => setV((x) => ({ ...x, next_weeks: e.target.value }))} /></div>
-                  {c.appliance === 'aligners' ? (
-                    <div><label className="field">Aligner tray no.</label><input type="number" className="input" value={v.aligner_no} onChange={(e) => setV((x) => ({ ...x, aligner_no: e.target.value }))} /></div>
-                  ) : (
-                    <>
-                      <div><label className="field">Archwire upper</label><input className="input" placeholder="e.g. 0.014 NiTi" value={v.archwire_upper} onChange={(e) => setV((x) => ({ ...x, archwire_upper: e.target.value }))} /></div>
-                      <div><label className="field">Archwire lower</label><input className="input" placeholder="e.g. 19×25 SS" value={v.archwire_lower} onChange={(e) => setV((x) => ({ ...x, archwire_lower: e.target.value }))} /></div>
-                    </>
-                  )}
-                  <div><label className="field">Elastics</label><input className="input" placeholder="e.g. Class II 3/16 4.5oz" value={v.elastics} onChange={(e) => setV((x) => ({ ...x, elastics: e.target.value }))} /></div>
-                </div>
-                <input className="input" placeholder="Note (oral hygiene, breakages, compliance…)" value={v.note} onChange={(e) => setV((x) => ({ ...x, note: e.target.value }))} />
-                <div className="row" style={{ justifyContent: 'flex-end' }}>
-                  <button className="btn secondary sm" onClick={() => setAddingVisit(false)}>Cancel</button>
-                  <button className="btn sm" onClick={addVisit}>Save visit</button>
-                </div>
+              <div style={{ padding: 12, background: 'var(--mint-bg)', borderRadius: 8, marginBottom: 10 }}>
+                <OrthoVisitForm c={c} onSaved={() => { setAddingVisit(false); load(); onChanged() }} onCancel={() => setAddingVisit(false)} />
               </div>
             )}
             <div className="grid" style={{ gap: 6 }}>
@@ -224,10 +267,11 @@ function OrthoCase({ c, expanded, onToggle, onEdit, onChanged }) {
   )
 }
 
-function OrthoCaseModal({ form, setForm, onSave, onClose }) {
+export function OrthoCaseModal({ form, setForm, onSave, onClose, patientName }) {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const title = form.id ? 'Edit ortho case' : 'New orthodontic case'
   return (
-    <Modal title={form.id ? 'Edit ortho case' : 'New orthodontic case'} onClose={onClose}>
+    <Modal title={patientName ? `${title} — ${patientName}` : title} onClose={onClose}>
       <div className="grid" style={{ gap: 12 }}>
         <div className="form-grid">
           <div><label className="field">Appliance</label>

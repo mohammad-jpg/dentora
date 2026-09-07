@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { sb, euro, fmtDate, fmtTime, fullName, age } from '../supabase.js'
 import { Modal, StatusBadge, InvoiceBadge, useToast } from '../ui.jsx'
 import Odontogram, { CONDITIONS } from '../Odontogram.jsx'
@@ -20,8 +20,9 @@ export const SCHEME_META = {
 
 export default function PatientDetail() {
   const { id } = useParams()
+  const [params] = useSearchParams()
   const [p, setP] = useState(null)
-  const [tab, setTab] = useState('Overview')
+  const [tab, setTab] = useState(() => params.get('tab') || 'Overview')
   const [editing, setEditing] = useState(false)
   const toast = useToast()
   const { clinic: myClinic } = useClinic()
@@ -29,6 +30,8 @@ export default function PatientDetail() {
 
   const load = () => sb.from('dental_patients').select('*').eq('id', id).single().then(({ data }) => setP(data))
   useEffect(() => { load() }, [id])
+  useEffect(() => { const t = params.get('tab'); if (t && TABS.includes(t)) setTab(t) }, [id, params])
+  useEffect(() => { if (!TABS.includes(tab)) setTab('Overview') }, [TABS.length])
 
   const saveEdit = async (form) => {
     const { error } = await sb.from('dental_patients').update(form).eq('id', id)

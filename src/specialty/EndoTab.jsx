@@ -21,41 +21,51 @@ export const APICAL = {
 export const ENDO_STATUS = {
   planned: ['Planned', 'b-gray'], in_progress: ['In progress', 'b-amber'], completed: ['Completed', 'b-green'], review: ['Under review', 'b-blue'],
 }
+export const OPEN_ENDO = ['planned', 'in_progress', 'review']
 const CANAL_PRESETS = {
   anterior: ['Single'], premolar: ['B', 'P'], molar_upper: ['MB', 'MB2', 'DB', 'P'], molar_lower: ['MB', 'ML', 'D'],
 }
+const blankCanal = () => ({ name: '', wl: '', ref: '', maf: '', obturation: '' })
 
-export default function EndoTab({ patientId, patient }) {
-  const { clinic } = useClinic()
-  const [cases, setCases] = useState([])
-  const [editing, setEditing] = useState(null)
-  const [report, setReport] = useState(null)
-  const toast = useToast()
+// Pick a sensible canal preset from an FDI tooth number so the form starts pre-filled.
+export function presetForTooth(tooth) {
+  const n = String(tooth || '').trim()
+  if (!/^[1-4][1-8]$/.test(n)) return null
+  const q = Number(n[0]), t = Number(n[1])
+  if (t <= 3) return 'anterior'
+  if (t <= 5) return 'premolar'
+  return q <= 2 ? 'molar_upper' : 'molar_lower'
+}
 
-  const load = () =>
-    sb.from('dental_endo_cases').select('*').eq('patient_id', patientId).order('created_at', { ascending: false })
-      .then(({ data }) => setCases(data || []))
-  useEffect(() => { load() }, [patientId])
+export const newEndoForm = (tooth = '') => ({
+  tooth, diagnosis_pulpal: 'irreversible_pulpitis_symptomatic', diagnosis_apical: 'symptomatic_ap',
+  tests: { cold: '', ept: '', percussion: '', palpation: '', mobility: '' },
+  canals: [blankCanal()],
+  medicament: '', sealer: '', rubber_dam: true, visits: 1, complications: '', status: 'planned', review_due: '', outcome: '', referrer: '', notes: '',
+})
 
-  const save = async (form) => {
-    const payload = {
-      ...form, patient_id: patientId,
-      visits: Number(form.visits) || 1, review_due: form.review_due || null,
-      canals: form.canals.filter((c) => c.name.trim()),
-    }
-    delete payload.id; delete payload.created_at
-    const q = editing?.id ? sb.from('dental_endo_cases').update(payload).eq('id', editing.id) : sb.from('dental_endo_cases').insert(payload)
-    const { error } = await q
-    if (error) return toast('Error: ' + error.message)
-    toast(editing?.id ? 'Endo case updated' : 'Endo case opened')
-    setEditing(null)
-    load()
+// Normalise a case row for editing (jsonb fields may be null on older rows).
+export const editEndoForm = (c) => ({ ...c, tests: c.tests || {}, canals: c.canals?.length ? c.canals : [blankCanal()] })
+
+// Insert or update a case. Returns { data, error }.
+export async function saveEndoCase(patientId, form, existingId) {
+  const payload = {
+    ...form, patient_id: patientId,
+    tooth: String(form.tooth || '').trim(),
+    visits: Number(form.visits) || 1, review_due: form.review_due || null,
+    canals: (form.canals || []).filter((c) => c.name?.trim()),
   }
+  delete payload.id; delete payload.created_at; delete payload.patient
+  const q = existingId
+    ? sb.from('dental_endo_cases').update(payload).eq('id', existingId).select().single()
+    : sb.from('dental_endo_cases').insert(payload).select().single()
+  return q
+}
 
-  const buildReport = (c) => {
-    const today = new Date().toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' })
-    const canalLines = (c.canals || []).map((k) => `  ${k.name}: WL ${k.wl || '—'} mm (${k.ref || 'ref not recorded'}), MAF ${k.maf || '—'}${k.obturation ? `, ${k.obturation}` : ''}`).join('\n')
-    return `${clinic.name}
+export function buildEndoReport(clinic, patient, c) {
+  const today = new Date().toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' })
+  const canalLines = (c.canals || []).map((k) => `  ${k.name}: WL ${k.wl || '—'} mm (${k.ref || 'ref not recorded'}), MAF ${k.maf || '—'}${k.obturation ? `, ${k.obturation}` : ''}`).join('\n')
+  return `${clinic.name}
 ${[clinic.address, clinic.phone, clinic.email].filter(Boolean).join(' · ')}
 
 ${today}
@@ -80,18 +90,46 @@ The patient has been advised to return to you for the definitive coronal restora
 Kind regards,
 
 ${clinic.name}`
+}
+
+export function EndoReportModal({ report, onClose }) {
+  const toast = useToast()
+  return (
+    <Modal title="Report to referring dentist" onClose={onClose}>
+      <div className="letter">{report}</div>
+      <div className="actions">
+        <button className="btn secondary" onClick={() => { navigator.clipboard.writeText(report); toast('Report copied') }}>Copy</button>
+        <button className="btn" onClick={() => window.print()}>Print</button>
+      </div>
+    </Modal>
+  )
+}
+
+export default function EndoTab({ patientId, patient }) {
+  const { clinic } = useClinic()
+  const [cases, setCases] = useState([])
+  const [editing, setEditing] = useState(null)
+  const [report, setReport] = useState(null)
+  const toast = useToast()
+
+  const load = () =>
+    sb.from('dental_endo_cases').select('*').eq('patient_id', patientId).order('created_at', { ascending: false })
+      .then(({ data }) => setCases(data || []))
+  useEffect(() => { load() }, [patientId])
+
+  const save = async (form) => {
+    const { error } = await saveEndoCase(patientId, form, editing?.id)
+    if (error) return toast('Error: ' + error.message)
+    toast(editing?.id ? 'Endo case updated' : 'Endo case opened')
+    setEditing(null)
+    load()
   }
 
   return (
     <div className="grid" style={{ gap: 14 }}>
       <div className="spread">
         <span className="muted small">{cases.length} case(s)</span>
-        <button className="btn" onClick={() => setEditing({
-          tooth: '', diagnosis_pulpal: 'irreversible_pulpitis_symptomatic', diagnosis_apical: 'symptomatic_ap',
-          tests: { cold: '', ept: '', percussion: '', palpation: '', mobility: '' },
-          canals: [{ name: '', wl: '', ref: '', maf: '', obturation: '' }],
-          medicament: '', sealer: '', rubber_dam: true, visits: 1, complications: '', status: 'planned', review_due: '', outcome: '', referrer: '', notes: '',
-        })}>+ New endo case</button>
+        <button className="btn" onClick={() => setEditing(newEndoForm())}>+ New endo case</button>
       </div>
       {cases.map((c) => {
         const [label, cls] = ENDO_STATUS[c.status] || [c.status, 'b-gray']
@@ -103,8 +141,8 @@ ${clinic.name}`
                 <div className="small muted">{PULPAL[c.diagnosis_pulpal] || '—'} · {APICAL[c.diagnosis_apical] || '—'}</div>
               </div>
               <div className="row">
-                <button className="btn sm secondary" onClick={() => setReport(buildReport(c))}>Report to referrer</button>
-                <button className="btn ghost sm" onClick={() => setEditing({ ...c, tests: c.tests || {}, canals: c.canals?.length ? c.canals : [{ name: '', wl: '', ref: '', maf: '', obturation: '' }] })}>Edit</button>
+                <button className="btn sm secondary" onClick={() => setReport(buildEndoReport(clinic, patient, c))}>Report to referrer</button>
+                <button className="btn ghost sm" onClick={() => setEditing(editEndoForm(c))}>Edit</button>
               </div>
             </div>
             <div className="grid" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 12 }}>
@@ -131,30 +169,32 @@ ${clinic.name}`
       })}
       {cases.length === 0 && <div className="card card-pad empty">No endodontic case yet.</div>}
       {editing && <EndoCaseModal form={editing} setForm={setEditing} onSave={save} onClose={() => setEditing(null)} />}
-      {report && (
-        <Modal title="Report to referring dentist" onClose={() => setReport(null)}>
-          <div className="letter">{report}</div>
-          <div className="actions">
-            <button className="btn secondary" onClick={() => { navigator.clipboard.writeText(report); toast('Report copied') }}>Copy</button>
-            <button className="btn" onClick={() => window.print()}>Print</button>
-          </div>
-        </Modal>
-      )}
+      {report && <EndoReportModal report={report} onClose={() => setReport(null)} />}
     </div>
   )
 }
 
-function EndoCaseModal({ form, setForm, onSave, onClose }) {
+export function EndoCaseModal({ form, setForm, onSave, onClose, patientName }) {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
   const setTest = (k) => (e) => setForm((f) => ({ ...f, tests: { ...f.tests, [k]: e.target.value } }))
   const setCanal = (i, k, val) => setForm((f) => ({ ...f, canals: f.canals.map((c, j) => (j === i ? { ...c, [k]: val } : c)) }))
-  const preset = (key) => setForm((f) => ({ ...f, canals: CANAL_PRESETS[key].map((n) => ({ name: n, wl: '', ref: '', maf: '', obturation: '' })) }))
+  const preset = (key) => setForm((f) => ({ ...f, canals: CANAL_PRESETS[key].map((n) => ({ ...blankCanal(), name: n })) }))
+  // When the tooth is typed on a new case and canals are still untouched, pre-fill the matching preset.
+  const setTooth = (e) => {
+    const tooth = e.target.value
+    setForm((f) => {
+      const untouched = !f.id && f.canals.every((c) => !c.name && !c.wl && !c.maf)
+      const key = presetForTooth(tooth)
+      return untouched && key ? { ...f, tooth, canals: CANAL_PRESETS[key].map((n) => ({ ...blankCanal(), name: n })) } : { ...f, tooth }
+    })
+  }
+  const title = form.id ? `Edit endo case — tooth ${form.tooth}` : 'New endodontic case'
 
   return (
-    <Modal title={form.id ? `Edit endo case — tooth ${form.tooth}` : 'New endodontic case'} onClose={onClose} wide>
+    <Modal title={patientName ? `${title} — ${patientName}` : title} onClose={onClose} wide>
       <div className="grid" style={{ gap: 12 }}>
         <div className="form-grid" style={{ gridTemplateColumns: '1fr 2fr 2fr' }}>
-          <div><label className="field">Tooth (FDI)</label><input className="input" value={form.tooth} onChange={set('tooth')} placeholder="e.g. 46" autoFocus /></div>
+          <div><label className="field">Tooth (FDI)</label><input className="input" value={form.tooth} onChange={setTooth} placeholder="e.g. 46" autoFocus /></div>
           <div><label className="field">Pulpal diagnosis</label>
             <select className="input" value={form.diagnosis_pulpal || ''} onChange={set('diagnosis_pulpal')}>{Object.entries(PULPAL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
           <div><label className="field">Apical diagnosis</label>
@@ -183,10 +223,10 @@ function EndoCaseModal({ form, setForm, onSave, onClose }) {
                 <input className="input" placeholder="Reference point" value={c.ref} onChange={(e) => setCanal(i, 'ref', e.target.value)} />
                 <input className="input" placeholder="MAF" value={c.maf} onChange={(e) => setCanal(i, 'maf', e.target.value)} />
                 <input className="input" placeholder="Obturation" value={c.obturation} onChange={(e) => setCanal(i, 'obturation', e.target.value)} />
-                <button type="button" className="btn ghost sm" onClick={() => setForm((f) => ({ ...f, canals: f.canals.filter((_, j) => j !== i) }))}>✕</button>
+                <button type="button" className="btn ghost sm" onClick={() => setForm((f) => ({ ...f, canals: f.canals.filter((_, j) => j !== i) }))}>Remove</button>
               </div>
             ))}
-            <button type="button" className="btn secondary sm" style={{ justifySelf: 'start' }} onClick={() => setForm((f) => ({ ...f, canals: [...f.canals, { name: '', wl: '', ref: '', maf: '', obturation: '' }] }))}>+ Canal</button>
+            <button type="button" className="btn secondary sm" style={{ justifySelf: 'start' }} onClick={() => setForm((f) => ({ ...f, canals: [...f.canals, blankCanal()] }))}>+ Canal</button>
           </div>
         </div>
         <div className="form-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
@@ -210,7 +250,7 @@ function EndoCaseModal({ form, setForm, onSave, onClose }) {
       </div>
       <div className="actions">
         <button className="btn secondary" onClick={onClose}>Cancel</button>
-        <button className="btn" disabled={!form.tooth?.trim()} onClick={() => onSave(form)}>Save case</button>
+        <button className="btn" disabled={!String(form.tooth || '').trim()} onClick={() => onSave(form)}>Save case</button>
       </div>
     </Modal>
   )
