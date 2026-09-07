@@ -20,3 +20,9 @@ export const age = (dob) => {
   const diff = Date.now() - new Date(dob).getTime()
   return Math.floor(diff / 31557600000)
 }
+
+// Display name of the signed-in staff member, for attributing clinical entries.
+export const currentUserName = async () => {
+  const { data: { user } } = await sb.auth.getUser()
+  return user?.user_metadata?.name || user?.email || 'Staff'
+}

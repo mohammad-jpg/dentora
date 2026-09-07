@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { ToastProvider, ToothMark } from './ui.jsx'
 import { AuthProvider } from './auth.jsx'
 import { ClinicProvider, useClinic } from './clinic.jsx'
@@ -9,6 +9,7 @@ import Referrals from './pages/Referrals.jsx'
 import Handover from './pages/Handover.jsx'
 import Portal from './pages/Portal.jsx'
 import CheckIn from './pages/CheckIn.jsx'
+import Kiosk from './pages/Kiosk.jsx'
 import LabWork from './pages/LabWork.jsx'
 import Ortho from './pages/Ortho.jsx'
 import Endo from './pages/Endo.jsx'
@@ -67,6 +68,9 @@ function Nav({ onNavigate, clinic }) {
 }
 
 export default function App() {
+  // The waiting-room tablet page lives outside the signed-in app entirely.
+  const loc = useLocation()
+  if (loc.pathname.startsWith('/kiosk')) return <ToastProvider><Kiosk /></ToastProvider>
   return (
     <ToastProvider>
       <AuthProvider>
@@ -80,8 +84,9 @@ export default function App() {
 function SurfaceRouter() {
   const [surface, setSurface] = useState(null)
   useEffect(() => {
-    sb.from('dental_memberships').select('id').limit(1)
-      .then(({ data }) => setSurface(data?.length ? 'staff' : 'portal'))
+    sb.auth.getUser().then(({ data: { user } }) =>
+      sb.from('dental_memberships').select('id').eq('user_id', user?.id || '').limit(1)
+        .then(({ data }) => setSurface(data?.length ? 'staff' : 'portal')))
   }, [])
   if (!surface) return <div className="login-wrap"><div className="muted">Loading…</div></div>
   if (surface === 'portal') return <Portal />
@@ -92,8 +97,21 @@ function SurfaceRouter() {
   )
 }
 
+function TrialBanner({ clinic }) {
+  if (clinic.plan !== 'trial' || !clinic.trial_ends_at) return null
+  const days = Math.ceil((new Date(clinic.trial_ends_at).getTime() - Date.now()) / 86400000)
+  const ended = days <= 0
+  return (
+    <div style={{ padding: '7px 14px', fontSize: 12.5, background: ended ? 'var(--red-bg, #FBE9EB)' : 'var(--amber-bg, #FBF3E0)', color: ended ? 'var(--red-ink, #9E2530)' : 'var(--amber-ink, #8A5A0B)', borderBottom: '1px solid var(--line)' }}>
+      {ended
+        ? <>Your free trial has ended. Email <a href="mailto:hello@dentora.ie" style={{ color: 'inherit', fontWeight: 600 }}>hello@dentora.ie</a> to keep your practice running on Dentora.</>
+        : <>Free trial · {days} day{days === 1 ? '' : 's'} left · <a href="mailto:hello@dentora.ie" style={{ color: 'inherit', fontWeight: 600 }}>Talk to us about a plan</a></>}
+    </div>
+  )
+}
+
 function Shell() {
-  const { clinic } = useClinic()
+  const { clinic, memberships, switchClinic } = useClinic()
   const [navOpen, setNavOpen] = useState(false)
   return (
       <div className="shell">
@@ -116,7 +134,11 @@ function Shell() {
                 {clinic.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
               </div>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <b>{clinic.name}</b>
+                {memberships.length > 1 ? (
+                  <select className="input" value={clinic.id} onChange={(e) => switchClinic(e.target.value)} style={{ padding: '3px 6px', fontSize: 12, fontWeight: 600, width: '100%' }}>
+                    {memberships.map((m) => <option key={m.clinic_id} value={m.clinic_id}>{m.name}</option>)}
+                  </select>
+                ) : <b>{clinic.name}</b>}
                 <button
                   onClick={() => sb.auth.signOut()}
                   style={{ background: 'none', border: 'none', color: '#7E959C', padding: 0, fontSize: 11, cursor: 'pointer' }}>
@@ -128,6 +150,7 @@ function Shell() {
         </aside>
         {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} />}
         <div className="main">
+          <TrialBanner clinic={clinic} />
           <div className="mobile-head">
             <button className="burger" onClick={() => setNavOpen(true)} aria-label="Open menu">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M4 6h16M4 12h16M4 18h16" /></svg>

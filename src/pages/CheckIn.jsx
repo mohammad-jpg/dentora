@@ -1,136 +1,138 @@
 import { useEffect, useState } from 'react'
-import { sb } from '../supabase.js'
+import { Link } from 'react-router-dom'
+import { sb, fullName, currentUserName } from '../supabase.js'
 import { useToast } from '../ui.jsx'
 import { useClinic } from '../clinic.jsx'
 
-// Tablet check-in: reception picks the patient, hands the iPad over, the patient
-// fills the medical questionnaire, and it lands straight on their record.
+// Reception side of tablet check-in. The waiting-room tablet is never signed in: it opens
+// the public kiosk page and the patient types a 6-digit code created here. Answers arrive
+// as a questionnaire awaiting clinician review on the patient's record — they do not
+// overwrite the medical alerts a clinician has recorded.
 
-const CONDITIONS = [
-  'Heart condition', 'High blood pressure', 'Diabetes', 'Asthma / breathing', 'Epilepsy',
-  'Bleeding disorder / blood thinners', 'Hepatitis / HIV', 'Osteoporosis medication', 'Pregnancy',
-]
+const kioskUrl = () => `${window.location.origin}${window.location.pathname}#/kiosk`
+const sixDigits = () => String(Math.floor(100000 + Math.random() * 900000))
 
 export default function CheckIn() {
-  const { clinic } = useClinic()
+  const { clinic, clinicId } = useClinic()
   const [patients, setPatients] = useState([])
   const [q, setQ] = useState('')
-  const [patient, setPatient] = useState(null)
-  const [stage, setStage] = useState('pick') // pick | form | done
-  const [f, setF] = useState(null)
+  const [sessions, setSessions] = useState([])
+  const [pending, setPending] = useState([])
+  const [busy, setBusy] = useState(false)
   const toast = useToast()
 
+  const load = () => {
+    const since = new Date(); since.setHours(0, 0, 0, 0)
+    sb.from('dental_checkin_sessions').select('*, patient:dental_patients(id,first_name,last_name)')
+      .eq('clinic_id', clinicId).gte('created_at', since.toISOString()).order('created_at', { ascending: false })
+      .then(({ data }) => setSessions(data || []))
+    sb.from('dental_questionnaires').select('id, created_at, source, patient:dental_patients!inner(id,first_name,last_name,clinic_id)')
+      .is('reviewed_at', null).eq('patient.clinic_id', clinicId).order('created_at', { ascending: false })
+      .then(({ data }) => setPending(data || []))
+  }
   useEffect(() => {
-    sb.from('dental_patients').select('id,first_name,last_name,dob,phone').order('last_name').then(({ data }) => setPatients(data || []))
-  }, [])
+    sb.from('dental_patients').select('id,first_name,last_name,dob,phone').eq('clinic_id', clinicId).eq('archived', false).order('last_name')
+      .then(({ data }) => setPatients(data || []))
+    load()
+    const t = setInterval(load, 15000)
+    return () => clearInterval(t)
+  }, [clinicId])
 
-  const start = (p) => {
-    setPatient(p)
-    setF({ conditions: [], other_condition: '', medications: '', allergies: '', smoker: '', gp: '', emergency_contact: '', consent: false, signature: '' })
-    setStage('form')
+  const createCode = async (p) => {
+    setBusy(true)
+    const by = await currentUserName()
+    let ok = false
+    for (let i = 0; i < 5 && !ok; i++) {
+      const { error } = await sb.from('dental_checkin_sessions').insert({ clinic_id: clinicId, patient_id: p.id, token: sixDigits(), created_by: by })
+      if (!error) ok = true
+      else if (!/duplicate|unique/i.test(error.message)) { setBusy(false); return toast('Error: ' + error.message) }
+    }
+    setBusy(false)
+    if (!ok) return toast('Could not create a code — try again.')
+    toast(`Code ready for ${fullName(p)}`)
+    setQ('')
+    load()
   }
 
-  const toggleCond = (c) =>
-    setF((x) => ({ ...x, conditions: x.conditions.includes(c) ? x.conditions.filter((v) => v !== c) : [...x.conditions, c] }))
-
-  const submit = async () => {
-    const { error } = await sb.from('dental_questionnaires').insert({ patient_id: patient.id, data: f })
-    if (error) return toast('Error: ' + error.message)
-    const alerts = [...f.conditions, f.other_condition, f.allergies ? `Allergies: ${f.allergies}` : '']
-      .filter((s) => s && s.trim()).join('; ')
-    await sb.from('dental_patients').update({ medical_alerts: alerts || null }).eq('id', patient.id)
-    setStage('done')
-  }
-
-  const filtered = patients.filter((p) => `${p.first_name} ${p.last_name}`.toLowerCase().includes(q.toLowerCase()))
-
-  if (stage === 'form') {
-    const ok = f.consent && f.signature.trim()
-    return (
-      <div className="content" style={{ maxWidth: 640, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 18 }}>
-          <div className="page-title">Hi {patient.first_name}</div>
-          <div className="page-sub">Please answer a few questions about your health — it keeps your treatment safe.</div>
-        </div>
-        <div className="grid" style={{ gap: 14 }}>
-          <div className="card card-pad">
-            <div className="card-title">Do any of these apply to you?</div>
-            <div className="grid" style={{ gap: 8, gridTemplateColumns: '1fr 1fr' }}>
-              {CONDITIONS.map((c) => (
-                <button key={c} className={`pick ${f.conditions.includes(c) ? 'on' : ''}`} onClick={() => toggleCond(c)}>
-                  <b style={{ fontSize: 14 }}>{c}</b>
-                </button>
-              ))}
-            </div>
-            <input className="input" style={{ marginTop: 10 }} placeholder="Anything else we should know?"
-              value={f.other_condition} onChange={(e) => setF((x) => ({ ...x, other_condition: e.target.value }))} />
-          </div>
-          <div className="card card-pad grid" style={{ gap: 12 }}>
-            <div><label className="field">Medications you take</label>
-              <input className="input" value={f.medications} onChange={(e) => setF((x) => ({ ...x, medications: e.target.value }))} placeholder="e.g. warfarin, inhaler — or 'none'" /></div>
-            <div><label className="field">Allergies</label>
-              <input className="input" value={f.allergies} onChange={(e) => setF((x) => ({ ...x, allergies: e.target.value }))} placeholder="e.g. penicillin, latex — or 'none'" /></div>
-            <div className="form-grid">
-              <div>
-                <label className="field">Do you smoke?</label>
-                <div className="row">
-                  {['No', 'Yes', 'Vape'].map((v) => (
-                    <button key={v} className={`btn sm ${f.smoker === v ? '' : 'secondary'}`} onClick={() => setF((x) => ({ ...x, smoker: v }))}>{v}</button>
-                  ))}
-                </div>
-              </div>
-              <div><label className="field">Your GP</label>
-                <input className="input" value={f.gp} onChange={(e) => setF((x) => ({ ...x, gp: e.target.value }))} /></div>
-            </div>
-            <div><label className="field">Emergency contact (name & number)</label>
-              <input className="input" value={f.emergency_contact} onChange={(e) => setF((x) => ({ ...x, emergency_contact: e.target.value }))} /></div>
-          </div>
-          <div className="card card-pad grid" style={{ gap: 12 }}>
-            <label className="row" style={{ cursor: 'pointer', alignItems: 'flex-start', gap: 10 }}>
-              <input type="checkbox" checked={f.consent} onChange={(e) => setF((x) => ({ ...x, consent: e.target.checked }))} style={{ marginTop: 3 }} />
-              <span className="small">I confirm the above is accurate and consent to {clinic.name} storing this information for my dental care.</span>
-            </label>
-            <div><label className="field">Type your full name to sign</label>
-              <input className="input" value={f.signature} onChange={(e) => setF((x) => ({ ...x, signature: e.target.value }))} placeholder={`${patient.first_name} ${patient.last_name}`} /></div>
-            <button className="btn" style={{ padding: '14px', justifyContent: 'center', fontSize: 15 }} disabled={!ok} onClick={submit}>
-              Submit & hand back
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (stage === 'done') {
-    return (
-      <div className="content" style={{ textAlign: 'center', paddingTop: 80 }}>
-        
-        <div className="page-title" style={{ marginTop: 12 }}>All done, {patient.first_name}!</div>
-        <div className="page-sub">Please hand the tablet back to reception — you'll be called shortly.</div>
-        <button className="btn secondary" style={{ marginTop: 26 }} onClick={() => { setStage('pick'); setPatient(null); setQ('') }}>
-          Reception: next patient →
-        </button>
-      </div>
-    )
-  }
+  const filtered = q.trim() ? patients.filter((p) => `${p.first_name} ${p.last_name} ${p.phone || ''}`.toLowerCase().includes(q.toLowerCase())).slice(0, 8) : []
+  const now = Date.now()
+  const stateOf = (s) => s.used_at ? ['Completed', 'b-green'] : new Date(s.expires_at).getTime() < now ? ['Expired', 'b-gray'] : ['Waiting', 'b-amber']
 
   return (
     <>
       <div className="topbar">
         <div>
           <div className="page-title">Check-in</div>
-          <div className="page-sub">Pick the patient, hand over the tablet — their answers land straight on the record and update medical alerts.</div>
+          <div className="page-sub">Create a code for the patient, they enter it on the waiting-room tablet · answers go to the record for review</div>
         </div>
       </div>
-      <div className="content" style={{ maxWidth: 640 }}>
-        <input className="input" placeholder="Find patient…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 12 }} autoFocus />
-        <div className="grid" style={{ gap: 8 }}>
-          {filtered.slice(0, 8).map((p) => (
-            <button key={p.id} className="pick" onClick={() => start(p)}>
-              <b>{p.first_name} {p.last_name}</b>
-              <span>{p.phone || ''}</span>
-            </button>
-          ))}
+      <div className="content grid" style={{ gridTemplateColumns: 'minmax(0, 1fr) minmax(300px, 1fr)', alignItems: 'start' }}>
+        <div className="grid" style={{ gap: 16 }}>
+          <div className="card card-pad">
+            <div className="card-title">New check-in code</div>
+            <input className="input" placeholder="Find patient by name or phone…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+            <div className="grid" style={{ gap: 8, marginTop: 10 }}>
+              {filtered.map((p) => (
+                <button key={p.id} className="pick" disabled={busy} onClick={() => createCode(p)}>
+                  <b>{p.first_name} {p.last_name}</b>
+                  <span>{p.phone || ''}</span>
+                </button>
+              ))}
+              {q.trim() && filtered.length === 0 && <div className="small muted">No patients match.</div>}
+            </div>
+          </div>
+
+          <div className="card card-pad">
+            <div className="card-title">Today's codes</div>
+            <div className="grid" style={{ gap: 6 }}>
+              {sessions.map((s) => {
+                const [label, cls] = stateOf(s)
+                return (
+                  <div key={s.id} className="spread" style={{ padding: '8px 10px', background: 'var(--mint-bg)', borderRadius: 8 }}>
+                    <span>
+                      <b>{fullName(s.patient)}</b>
+                      <div className="small muted">created {new Date(s.created_at).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' })}{s.created_by ? ` by ${s.created_by}` : ''}</div>
+                    </span>
+                    <span className="row" style={{ gap: 10 }}>
+                      {label === 'Waiting' && <span className="mono" style={{ fontSize: 22, fontWeight: 650, letterSpacing: '0.18em' }}>{s.token}</span>}
+                      <span className={`badge ${cls}`}>{label}</span>
+                    </span>
+                  </div>
+                )
+              })}
+              {sessions.length === 0 && <div className="small muted">No codes created today.</div>}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid" style={{ gap: 16 }}>
+          <div className="card card-pad">
+            <div className="card-title">Tablet setup</div>
+            <p className="small" style={{ color: 'var(--ink-60)', margin: 0 }}>
+              On the waiting-room tablet, open this address and leave it there. It is not signed in to Dentora, so the tablet only ever sees the one patient whose code is entered.
+            </p>
+            <div className="row" style={{ marginTop: 10, gap: 8 }}>
+              <code style={{ flex: 1, padding: '8px 10px', background: 'var(--code-bg, var(--line-soft))', borderRadius: 6, fontSize: 13, overflowX: 'auto' }}>{kioskUrl()}</code>
+              <button className="btn secondary sm" onClick={() => { navigator.clipboard.writeText(kioskUrl()); toast('Link copied') }}>Copy</button>
+            </div>
+            <p className="small muted" style={{ marginTop: 8, marginBottom: 0 }}>Codes are single-use and expire after 30 minutes.</p>
+          </div>
+
+          <div className="card card-pad">
+            <div className="card-title">Awaiting clinician review {pending.length > 0 && <span className="badge b-amber">{pending.length}</span>}</div>
+            <div className="grid" style={{ gap: 6 }}>
+              {pending.map((qn) => (
+                <div key={qn.id} className="spread small" style={{ padding: '7px 10px', background: 'var(--mint-bg)', borderRadius: 7 }}>
+                  <span>
+                    <Link to={`/patients/${qn.patient.id}`} style={{ fontWeight: 600, color: 'var(--accent-strong)' }}>{fullName(qn.patient)}</Link>
+                    <div className="muted">{qn.source === 'portal' ? 'via patient portal' : 'via tablet'} · {new Date(qn.created_at).toLocaleString('en-IE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                  </span>
+                  <Link to={`/patients/${qn.patient.id}`} className="btn sm secondary">Review</Link>
+                </div>
+              ))}
+              {pending.length === 0 && <div className="small muted">Nothing waiting. Submitted histories appear here until a clinician reviews them on the patient record.</div>}
+            </div>
+          </div>
         </div>
       </div>
     </>

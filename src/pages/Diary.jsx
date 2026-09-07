@@ -31,7 +31,7 @@ export default function Diary() {
 
   useEffect(() => {
     sb.from('dental_practitioners').select('*').eq('clinic_id', clinicId).eq('active', true).order('name').then(({ data }) => setPracs(data || []))
-    sb.from('dental_patients').select('id,first_name,last_name').order('last_name').then(({ data }) => setPatients(data || []))
+    sb.from('dental_patients').select('id,first_name,last_name').eq('clinic_id', clinicId).eq('archived', false).order('last_name').then(({ data }) => setPatients(data || []))
     sb.from('dental_rota').select('*').then(({ data }) => setRota(data || []))
   }, [])
 
@@ -40,6 +40,7 @@ export default function Diary() {
     const end = new Date(date); end.setHours(23, 59, 59)
     sb.from('dental_appointments')
       .select('*, patient:dental_patients(id,first_name,last_name)')
+      .eq('clinic_id', clinicId)
       .gte('starts_at', start.toISOString()).lte('starts_at', end.toISOString())
       .then(({ data }) => setAppts(data || []))
   }
@@ -59,31 +60,32 @@ export default function Diary() {
     return { top, height, '--stripe': color, '--tint': color + '14' }
   }
 
+  // Every booking path goes through dental_book_appointment(): the database validates the
+  // clinician, patient, duration and status, and an exclusion constraint makes double-booking
+  // impossible even under concurrent requests.
   const save = async (form) => {
-    const payload = {
-      clinic_id: clinicId,
-      patient_id: form.patient_id,
-      practitioner_id: form.practitioner_id,
-      starts_at: localISO(date, ...form.start.split(':').map(Number)),
-      ends_at: localISO(date, ...form.end.split(':').map(Number)),
-      status: form.status,
-      reason: form.reason,
+    const { error } = await sb.rpc('dental_book_appointment', {
+      p_clinic_id: clinicId,
+      p_patient_id: form.patient_id,
+      p_practitioner_id: form.practitioner_id,
+      p_starts_at: localISO(date, ...form.start.split(':').map(Number)),
+      p_ends_at: localISO(date, ...form.end.split(':').map(Number)),
+      p_status: form.status,
+      p_reason: form.reason,
+      p_appointment_id: editing?.id || null,
+      p_enforce_rota: false,
+    })
+    if (error) {
+      return toast(/slot_taken/.test(error.message) ? 'That time overlaps another appointment for this clinician.' : 'Error: ' + error.message)
     }
-    if (editing?.id) {
-      const { error } = await sb.from('dental_appointments').update(payload).eq('id', editing.id)
-      if (error) return toast('Error: ' + error.message)
-      toast('Appointment updated')
-    } else {
-      const { error } = await sb.from('dental_appointments').insert(payload)
-      if (error) return toast('Error: ' + error.message)
-      toast('Appointment booked')
-    }
+    toast(editing?.id ? 'Appointment updated' : 'Appointment booked')
     setEditing(null)
     load()
   }
 
   const remove = async () => {
-    await sb.from('dental_appointments').delete().eq('id', editing.id)
+    const { error } = await sb.from('dental_appointments').delete().eq('id', editing.id)
+    if (error) return toast('Error: ' + error.message)
     toast('Appointment deleted')
     setEditing(null)
     load()
@@ -93,8 +95,10 @@ export default function Diary() {
   const cancelDay = async (prac) => {
     const dayAppts = appts.filter((a) => a.practitioner_id === prac.id && !['cancelled', 'completed'].includes(a.status))
     const dateLabel = date.toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })
+    let failed = 0
     for (const a of dayAppts) {
-      await sb.from('dental_appointments').update({ status: 'cancelled' }).eq('id', a.id)
+      const { error } = await sb.from('dental_appointments').update({ status: 'cancelled' }).eq('id', a.id)
+      if (error) { failed++; continue }
       if (a.patient?.id) {
         await sb.from('dental_comms_log').insert({
           patient_id: a.patient.id, channel: 'sms',
@@ -102,7 +106,7 @@ export default function Diary() {
         })
       }
     }
-    toast(`${prac.name}'s day cleared — ${dayAppts.length} patient(s) texted to rebook`)
+    toast(failed ? `${dayAppts.length - failed} cancelled, ${failed} could not be updated` : `${prac.name}'s day cleared — ${dayAppts.length} patient(s) texted to rebook`)
     setSickDay(null)
     load()
   }

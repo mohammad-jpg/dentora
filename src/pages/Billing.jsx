@@ -39,10 +39,9 @@ export default function Billing() {
   }
 
   const recordPayment = async (inv, amount, method) => {
+    // Invoice status is derived from allocated payments by a database trigger.
     const { error } = await sb.from('dental_payments').insert({ invoice_id: inv.id, patient_id: inv.patient.id, amount, method })
     if (error) return toast('Error: ' + error.message)
-    const nowPaid = paidFor(inv) + Number(amount)
-    await sb.from('dental_invoices').update({ status: nowPaid >= Number(inv.total) ? 'paid' : 'part_paid' }).eq('id', inv.id)
     toast(`Payment of ${euro(amount)} recorded`)
     setPaying(null)
     load()
@@ -136,11 +135,19 @@ function DebtsCard({ invoices, payments, clinic, clinicId, onChanged }) {
     toast(`Account reminder sent to ${fullName(d.patient)}`)
   }
 
+  // A write-off is a ledger adjustment allocated to each open invoice — never a lump sum —
+  // so per-invoice balances stay consistent and Reports can exclude it from cash collected.
   const writeOff = async (d) => {
-    await sb.from('dental_payments').insert({ patient_id: d.patient.id, amount: d.balance, method: 'write_off' })
     const open = invoices.filter((i) => i.patient?.id === d.patient.id && ['unpaid', 'part_paid'].includes(i.status))
-    for (const inv of open) await sb.from('dental_invoices').update({ status: 'paid' }).eq('id', inv.id)
-    toast(`${euro(d.balance)} written off for ${fullName(d.patient)}`)
+    let total = 0
+    for (const inv of open) {
+      const remaining = Number(inv.total) - payments.filter((p) => p.invoice_id === inv.id).reduce((s, p) => s + Number(p.amount), 0)
+      if (remaining <= 0.009) continue
+      const { error } = await sb.from('dental_payments').insert({ invoice_id: inv.id, patient_id: d.patient.id, amount: Number(remaining.toFixed(2)), method: 'write_off' })
+      if (error) return toast('Error: ' + error.message)
+      total += remaining
+    }
+    toast(`${euro(total)} written off for ${fullName(d.patient)} across ${open.length} invoice(s)`)
     setConfirmOff(null)
     onChanged()
   }
@@ -176,8 +183,8 @@ function DebtsCard({ invoices, payments, clinic, clinicId, onChanged }) {
       {confirmOff && (
         <Modal title={`Write off ${euro(confirmOff.balance)}?`} onClose={() => setConfirmOff(null)}>
           <p className="small" style={{ color: 'var(--ink-60)' }}>
-            {fullName(confirmOff.patient)}'s balance will be cleared as a bad debt. This is recorded as a
-            write-off payment so your revenue reports stay honest. It can't be undone from here.
+            {fullName(confirmOff.patient)}'s outstanding balance will be written off against each open invoice as bad debt.
+            Write-offs are kept separate from cash received in Reports. It can't be undone from here.
           </p>
           <div className="actions">
             <button className="btn secondary" onClick={() => setConfirmOff(null)}>Cancel</button>

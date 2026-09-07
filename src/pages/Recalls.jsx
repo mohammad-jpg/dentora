@@ -5,7 +5,7 @@ import { useToast } from '../ui.jsx'
 import { useClinic } from '../clinic.jsx'
 
 export default function Recalls() {
-  const { clinic } = useClinic()
+  const { clinic, clinicId, isAdmin } = useClinic()
   const [recalls, setRecalls] = useState([])
   const toast = useToast()
 
@@ -38,12 +38,12 @@ export default function Recalls() {
           <div className="page-title">Recalls</div>
           <div className="page-sub">{recalls.filter((r) => r.status === 'due').length} patients due · automated reminders keep the chairs full</div>
         </div>
-        <button className="btn" onClick={async () => {
-          const { data, error } = await sb.functions.invoke('recall-engine', { body: {} })
+        {isAdmin && <button className="btn" onClick={async () => {
+          const { data, error } = await sb.functions.invoke('recall-engine', { body: { clinic_id: clinicId } })
           if (error || data?.error) return toast(data?.error || 'Automation run failed.')
-          toast(`Automation ran — ${data.processed} reminder(s) sent (${data.mode} mode)`)
+          toast(`Automation ran — ${(data.recalls || 0) + (data.reminders || 0)} reminder(s) sent, ${data.cycles_created || 0} recall(s) scheduled (${data.mode} mode)`)
           load()
-        }}>▶ Run automation now</button>
+        }}>Run automation now</button>}
       </div>
       <div className="content">
         <div className="card card-pad" style={{ borderLeft: '4px solid var(--teal)', marginBottom: 16 }}>

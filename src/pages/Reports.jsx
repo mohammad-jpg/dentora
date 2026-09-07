@@ -1,57 +1,62 @@
 import { useEffect, useState } from 'react'
 import { sb, euro } from '../supabase.js'
 import { Stat, STATUS_META } from '../ui.jsx'
+import { useClinic } from '../clinic.jsx'
 
 export default function Reports() {
+  const { clinicId } = useClinic()
   const [payments, setPayments] = useState([])
   const [appts, setAppts] = useState([])
   const [invoices, setInvoices] = useState([])
 
   useEffect(() => {
     sb.from('dental_payments').select('*').then(({ data }) => setPayments(data || []))
-    sb.from('dental_appointments').select('status,starts_at').then(({ data }) => setAppts(data || []))
+    sb.from('dental_appointments').select('status,starts_at').eq('clinic_id', clinicId).then(({ data }) => setAppts(data || []))
     sb.from('dental_invoices').select('items,total,status').then(({ data }) => setInvoices(data || []))
-  }, [])
+  }, [clinicId])
 
-  // Revenue by month (payments received)
+  // Cash actually received. Write-offs settle an invoice but are not income.
+  const collected = payments.filter((p) => p.method !== 'write_off')
+  const writtenOff = payments.filter((p) => p.method === 'write_off').reduce((s, p) => s + Number(p.amount), 0)
+
   const byMonth = {}
-  for (const p of payments) {
+  for (const p of collected) {
     const k = p.paid_on.slice(0, 7)
     byMonth[k] = (byMonth[k] || 0) + Number(p.amount)
   }
   const months = Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).slice(-6)
   const maxRev = Math.max(...months.map(([, v]) => v), 1)
 
-  // Appointment status mix
   const statusMix = {}
   for (const a of appts) statusMix[a.status] = (statusMix[a.status] || 0) + 1
   const totalAppts = appts.length || 1
   const ftaRate = Math.round(((statusMix.fta || 0) / totalAppts) * 100)
 
-  // Top billed items
   const itemTotals = {}
-  for (const inv of invoices) for (const it of inv.items || []) {
-    itemTotals[it.description] = (itemTotals[it.description] || 0) + Number(it.amount)
+  for (const inv of invoices) {
+    if (inv.status === 'void') continue
+    for (const it of inv.items || []) itemTotals[it.description] = (itemTotals[it.description] || 0) + Number(it.amount)
   }
   const topItems = Object.entries(itemTotals).sort((a, b) => b[1] - a[1]).slice(0, 6)
   const maxItem = Math.max(...topItems.map(([, v]) => v), 1)
 
-  const totalRevenue = payments.reduce((s, p) => s + Number(p.amount), 0)
+  const totalRevenue = collected.reduce((s, p) => s + Number(p.amount), 0)
+  const live = invoices.filter((i) => i.status !== 'void')
 
   return (
     <>
       <div className="topbar">
         <div>
           <div className="page-title">Reports</div>
-          <div className="page-sub">Practice performance at a glance</div>
+          <div className="page-sub">Practice performance at a glance · {appts.length} appointments in the system</div>
         </div>
       </div>
       <div className="content grid" style={{ gap: 18 }}>
         <div className="stats">
-          <Stat label="Revenue collected" value={euro(totalRevenue)} detail="all time (demo data)" icon={null} />
-          <Stat label="Appointments" value={appts.length} detail="booked in system" icon={null} />
+          <Stat label="Revenue collected" value={euro(totalRevenue)} detail="payments received, all time" icon={null} />
+          <Stat label="Written off" value={euro(writtenOff)} detail="bad debt, excluded from revenue" icon={null} />
           <Stat label="FTA rate" value={`${ftaRate}%`} detail="failed to attend" icon={null} />
-          <Stat label="Avg invoice" value={euro(invoices.length ? invoices.reduce((s, i) => s + Number(i.total), 0) / invoices.length : 0)} detail={`${invoices.length} invoices`} icon={null} />
+          <Stat label="Avg invoice" value={euro(live.length ? live.reduce((s, i) => s + Number(i.total), 0) / live.length : 0)} detail={`${live.length} invoices`} icon={null} />
         </div>
 
         <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>

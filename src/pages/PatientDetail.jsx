@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { sb, euro, fmtDate, fmtTime, fullName, age } from '../supabase.js'
+import { sb, euro, fmtDate, fmtTime, fullName, age, currentUserName } from '../supabase.js'
 import { Modal, StatusBadge, InvoiceBadge, useToast } from '../ui.jsx'
 import Odontogram, { CONDITIONS } from '../Odontogram.jsx'
 import { BpeModal, PerioModal, bpeFlag, SEXTANTS } from '../PerioChart.jsx'
@@ -68,7 +68,7 @@ export default function PatientDetail() {
             <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t}</button>
           ))}
         </div>
-        {tab === 'Overview' && <Overview p={p} />}
+        {tab === 'Overview' && <Overview p={p} onChanged={load} />}
         {tab === 'Dental chart' && <ChartTab patientId={id} />}
         {tab === 'Notes' && <NotesTab patientId={id} />}
         {tab === 'Treatment plans' && <PlansTab patientId={id} />}
@@ -83,7 +83,61 @@ export default function PatientDetail() {
   )
 }
 
-function Overview({ p }) {
+// Patient-reported medical history (tablet check-in or portal) waits here until a clinician
+// reconciles it with the alerts on the record. It never overwrites medical_alerts on its own.
+function PendingHistory({ p, onChanged }) {
+  const [items, setItems] = useState([])
+  const toast = useToast()
+  const load = () =>
+    sb.from('dental_questionnaires').select('*').eq('patient_id', p.id).is('reviewed_at', null).order('created_at', { ascending: false })
+      .then(({ data }) => setItems(data || []))
+  useEffect(() => { load() }, [p.id])
+  if (items.length === 0) return null
+
+  const summary = (d) => [...(d.conditions || []), d.other_condition, d.medications ? `Medications: ${d.medications}` : '', d.allergies ? `Allergies: ${d.allergies}` : '', d.smoker && d.smoker !== 'No' ? `Smoker: ${d.smoker}` : '']
+    .filter((s) => s && String(s).trim()).join('; ')
+  const markReviewed = async (qn) => {
+    const by = await currentUserName()
+    const { error } = await sb.from('dental_questionnaires').update({ reviewed_at: new Date().toISOString(), reviewed_by: by }).eq('id', qn.id)
+    if (error) return toast('Error: ' + error.message)
+    load()
+  }
+  const updateAlerts = async (qn) => {
+    const proposed = [p.medical_alerts, summary(qn.data)].filter(Boolean).join('; ')
+    const next = window.prompt('Medical alerts for this patient (edit before saving):', proposed)
+    if (next === null) return
+    const { error } = await sb.from('dental_patients').update({ medical_alerts: next.trim() || null }).eq('id', p.id)
+    if (error) return toast('Error: ' + error.message)
+    await markReviewed(qn)
+    toast('Medical alerts updated')
+    onChanged?.()
+  }
+
+  return (
+    <div className="card card-pad" style={{ gridColumn: '1/-1', borderLeft: '3px solid var(--amber-ink, #8A5A0B)' }}>
+      <div className="card-title">Patient-reported medical history awaiting review <span className="badge b-amber">{items.length}</span></div>
+      <div className="grid" style={{ gap: 8 }}>
+        {items.map((qn) => (
+          <div key={qn.id} className="spread" style={{ padding: '8px 10px', background: 'var(--mint-bg)', borderRadius: 8, gap: 12 }}>
+            <div className="small">
+              <div className="muted">{qn.source === 'portal' ? 'Patient portal' : 'Tablet check-in'} · {new Date(qn.created_at).toLocaleString('en-IE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}{qn.data?.signature ? ` · signed ${qn.data.signature}` : ''}</div>
+              <div style={{ marginTop: 3 }}>{summary(qn.data) || 'Nothing declared'}</div>
+              {qn.data?.gp && <div className="muted">GP: {qn.data.gp}</div>}
+              {qn.data?.emergency_contact && <div className="muted">Emergency contact: {qn.data.emergency_contact}</div>}
+            </div>
+            <span className="row" style={{ gap: 6, flexShrink: 0 }}>
+              <button className="btn sm secondary" onClick={() => updateAlerts(qn)}>Update alerts</button>
+              <button className="btn sm ghost" onClick={() => markReviewed(qn)}>Reviewed, no change</button>
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="small muted" style={{ margin: '10px 0 0' }}>Current alerts on record: {p.medical_alerts || 'none'}. "Update alerts" lets you edit the combined text before it is saved.</p>
+    </div>
+  )
+}
+
+function Overview({ p, onChanged }) {
   const [appts, setAppts] = useState([])
   useEffect(() => {
     sb.from('dental_appointments')
@@ -93,6 +147,7 @@ function Overview({ p }) {
   }, [p.id])
   return (
     <div className="grid" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
+      <PendingHistory p={p} onChanged={onChanged} />
       <div className="card card-pad">
         <div className="card-title">Details</div>
         <div className="grid" style={{ gap: 12 }}>
@@ -157,24 +212,35 @@ function ChartTab({ patientId }) {
 
   const add = async () => {
     if (!tooth) return
+    const author = await currentUserName()
     const { error } = await sb.from('dental_chart_entries').insert({
       patient_id: patientId, tooth,
       surface: form.surface || null,
-      condition: form.condition, status: form.status, note: form.note || null,
+      condition: form.condition, status: form.status, note: form.note || null, author,
     })
     if (error) return toast('Error: ' + error.message)
     toast(`Tooth ${tooth}: ${CONDITIONS[form.condition].label} added`)
     setForm((f) => ({ ...f, note: '' }))
     load()
   }
-  const del = async (id) => {
-    await sb.from('dental_chart_entries').delete().eq('id', id)
+  // Chart entries are never deleted: they are retired with a reason and stay in the
+  // "as of" history exactly as they stood on any earlier date.
+  const retire = async (e) => {
+    const reason = window.prompt('Reason for retiring this entry (kept on the record):')
+    if (reason === null) return
+    const by = await currentUserName()
+    const { error } = await sb.from('dental_chart_entries')
+      .update({ deleted_at: new Date().toISOString(), deleted_by: by, deleted_reason: reason.trim() || null }).eq('id', e.id)
+    if (error) return toast('Error: ' + error.message)
+    toast('Entry retired')
     load()
   }
 
-  const changeDates = [...new Set(entries.map((e) => e.created_at.slice(0, 10)))].sort().reverse()
-  const visible = asOf ? entries.filter((e) => e.created_at.slice(0, 10) <= asOf) : entries
-  const toothEntries = visible.filter((e) => e.tooth === tooth)
+  const changeDates = [...new Set(entries.flatMap((e) => [e.created_at.slice(0, 10), e.deleted_at?.slice(0, 10)].filter(Boolean)))].sort().reverse()
+  const visible = asOf
+    ? entries.filter((e) => e.created_at.slice(0, 10) <= asOf && (!e.deleted_at || e.deleted_at.slice(0, 10) > asOf))
+    : entries.filter((e) => !e.deleted_at)
+  const toothEntries = (asOf ? visible : entries).filter((e) => e.tooth === tooth)
 
   return (
     <div className="grid" style={{ gridTemplateColumns: '1.7fr 1fr' }}>
@@ -218,15 +284,16 @@ function ChartTab({ patientId }) {
           <>
             <div className="grid" style={{ gap: 10, marginBottom: 16 }}>
               {toothEntries.map((e) => (
-                <div key={e.id} className="spread" style={{ padding: '8px 10px', background: 'var(--mint-bg)', borderRadius: 10 }}>
+                <div key={e.id} className="spread" style={{ padding: '8px 10px', background: 'var(--mint-bg)', borderRadius: 10, opacity: e.deleted_at ? 0.6 : 1 }}>
                   <div>
-                    <span className="badge" style={{ background: CONDITIONS[e.condition]?.color + '22', color: CONDITIONS[e.condition]?.color }}>
+                    <span className="badge" style={{ background: CONDITIONS[e.condition]?.color + '22', color: CONDITIONS[e.condition]?.color, textDecoration: e.deleted_at ? 'line-through' : 'none' }}>
                       {CONDITIONS[e.condition]?.label}{e.surface ? ` · ${e.surface}` : ''}
                     </span>
-                    <span className="small muted" style={{ marginLeft: 8 }}>{e.status} · {fmtDate(e.created_at)}</span>
+                    <span className="small muted" style={{ marginLeft: 8 }}>{e.status} · {fmtDate(e.created_at)}{e.author ? ` · ${e.author}` : ''}</span>
                     {e.note && <div className="small muted" style={{ marginTop: 3 }}>{e.note}</div>}
+                    {e.deleted_at && <div className="small" style={{ marginTop: 3, color: 'var(--amber-ink, #8A5A0B)' }}>Retired {fmtDate(e.deleted_at)}{e.deleted_by ? ` by ${e.deleted_by}` : ''}{e.deleted_reason ? ` — ${e.deleted_reason}` : ''}</div>}
                   </div>
-                  {!asOf && <button className="btn ghost sm" onClick={() => del(e.id)}>✕</button>}
+                  {!asOf && !e.deleted_at && <button className="btn ghost sm" onClick={() => retire(e)}>Retire</button>}
                 </div>
               ))}
               {toothEntries.length === 0 && <div className="small muted">No entries for this tooth.</div>}

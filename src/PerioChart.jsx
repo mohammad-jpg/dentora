@@ -148,8 +148,11 @@ export function PerioModal({ patientId, examiner, onClose }) {
     for (const t of Object.keys(data)) {
       for (const side of ['b', 'l']) {
         const ppd = data[t]?.[`${side}_ppd`]
-        if (ppd !== '' && ppd != null) { sites++; if (Number(ppd) >= 4) deep++ }
-        if (data[t]?.[`${side}_plq`] === 1) plq++
+        const hasPpd = ppd !== '' && ppd != null
+        const hasPlq = data[t]?.[`${side}_plq`] === 1
+        if (hasPpd || hasPlq) sites++
+        if (hasPpd && Number(ppd) >= 4) deep++
+        if (hasPlq) plq++
       }
     }
     return { sites, plaquePct: sites ? Math.round((plq / sites) * 100) : 0, deep }

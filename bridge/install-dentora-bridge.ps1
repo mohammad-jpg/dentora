@@ -47,7 +47,12 @@ try {
   $vendor = $q['vendor']
   $cfg = $config.$vendor
   if (-not $cfg) { throw "No config for vendor '$vendor' - edit config.json" }
-  $args = $cfg.args.Replace('{pid}', $q['pid']).Replace('{first}', $q['first']).Replace('{last}', $q['last']).Replace('{dob}', $q['dob'])
+  # Only letters, digits, space and . , ' ^ - survive; quotes, shell metacharacters and
+  # control characters are stripped so a crafted patient name can't inject arguments.
+  $clean = { param($v) if ($null -eq $v) { '' } else { ([string]$v -replace "[^\p{L}\p{N} .,'^\-]", '').Substring(0, [Math]::Min(64, ([string]$v -replace "[^\p{L}\p{N} .,'^\-]", '').Length)) } }
+  $vals = @{ pid = (& $clean $q['pid']); first = (& $clean $q['first']); last = (& $clean $q['last']); dob = (& $clean $q['dob']) }
+  if ($vals.dob -and $vals.dob -notmatch '^\d{4}-\d{2}-\d{2}$') { $vals.dob = '' }
+  $args = $cfg.args.Replace('{pid}', $vals.pid).Replace('{first}', $vals.first).Replace('{last}', $vals.last).Replace('{dob}', $vals.dob)
   Start-Process -FilePath $cfg.exe -ArgumentList $args
 } catch {
   [System.Windows.Forms.MessageBox] | Out-Null

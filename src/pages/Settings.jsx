@@ -8,6 +8,7 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 
 export default function Settings() {
   const { clinic, clinicId, role, reload } = useClinic()
+  const canManage = ['owner', 'admin'].includes(role)
   const [treatments, setTreatments] = useState([])
   const [pracs, setPracs] = useState([])
   const [surgeries, setSurgeries] = useState([])
@@ -25,7 +26,8 @@ export default function Settings() {
 
   const updatePrice = async (t, price) => {
     if (Number(price) === Number(t.price)) return
-    await sb.from('dental_treatments').update({ price: Number(price) }).eq('id', t.id)
+    const { error } = await sb.from('dental_treatments').update({ price: Number(price) }).eq('id', t.id)
+    if (error) return toast('Error: ' + error.message)
     toast(`${t.name}: ${euro(price)}`)
     load()
   }
@@ -45,7 +47,8 @@ export default function Settings() {
   }
   const renameSurgery = async (s, name) => {
     if (!name.trim() || name === s.name) return
-    await sb.from('dental_surgeries').update({ name: name.trim() }).eq('id', s.id)
+    const { error } = await sb.from('dental_surgeries').update({ name: name.trim() }).eq('id', s.id)
+    if (error) return toast('Error: ' + error.message)
     // Rota rows carry a free-text room name with no clinic_id of their own, so this must be
     // scoped to this clinic's practitioners explicitly -- otherwise a rename here can also
     // rewrite another clinic's rota rows that happen to share the same generic room name
@@ -61,7 +64,7 @@ export default function Settings() {
   }
 
   const invite = async (form) => {
-    const { data, error } = await sb.functions.invoke('invite-staff', { body: form })
+    const { data, error } = await sb.functions.invoke('invite-staff', { body: { ...form, clinic_id: clinicId } })
     if (error || data?.error) {
       let msg = data?.error || 'Could not add team member.'
       if (error?.context) { try { msg = (await error.context.json())?.error || msg } catch { /* keep */ } }
@@ -84,21 +87,21 @@ export default function Settings() {
         <RotaCard pracs={pracs} surgeries={surgeries} />
         <div className="grid" style={{ gridTemplateColumns: '1fr 1.5fr', alignItems: 'start' }}>
           <div className="grid" style={{ gap: 16 }}>
-            <PracticeCard clinic={clinic} onSave={saveClinic} />
+            <PracticeCard clinic={clinic} onSave={canManage ? saveClinic : () => toast('Only an owner or admin can change practice details.')} />
             <AddonsCard clinic={clinic} canManage={['owner', 'admin'].includes(role)} onSave={saveClinic} />
 
-            <TeamCard members={members} canManage={['owner', 'admin'].includes(role)} onInvite={() => setInviting(true)} onChanged={load} />
+            <TeamCard members={members} clinicId={clinicId} canManage={canManage} onInvite={() => setInviting(true)} onChanged={load} />
 
             <div className="card card-pad">
               <div className="card-title">
                 Surgeries
-                <button className="btn sm" onClick={addSurgery}>+ Add surgery</button>
+                {canManage && <button className="btn sm" onClick={addSurgery}>+ Add surgery</button>}
               </div>
               <div className="grid" style={{ gap: 8 }}>
                 {surgeries.map((s) => (
                   <div className="row" key={s.id}>
-                    <input className="input" defaultValue={s.name} onBlur={(e) => renameSurgery(s, e.target.value)} />
-                    {surgeries.length > 1 && <button className="btn ghost sm" onClick={() => removeSurgery(s)}>✕</button>}
+                    <input className="input" defaultValue={s.name} readOnly={!canManage} onBlur={(e) => canManage && renameSurgery(s, e.target.value)} />
+                    {canManage && surgeries.length > 1 && <button className="btn ghost sm" onClick={() => removeSurgery(s)}>✕</button>}
                   </div>
                 ))}
               </div>
@@ -112,7 +115,7 @@ export default function Settings() {
           </div>
 
           <div className="card">
-            <div className="card-pad card-title" style={{ marginBottom: 0 }}>Fee schedule — edit prices inline</div>
+            <div className="card-pad card-title" style={{ marginBottom: 0 }}>Fee schedule{canManage ? ' — edit prices inline' : ''}</div>
             <table className="tbl">
               <thead><tr><th>Code</th><th>Treatment</th><th>Category</th><th>Duration</th><th>Price (€)</th></tr></thead>
               <tbody>
@@ -123,8 +126,8 @@ export default function Settings() {
                     <td><span className="badge b-gray">{t.category}</span></td>
                     <td className="muted">{t.duration_min} min</td>
                     <td style={{ width: 110 }}>
-                      <input type="number" className="input" defaultValue={Number(t.price)} min="0" step="5"
-                        onBlur={(e) => updatePrice(t, e.target.value)} />
+                      <input type="number" className="input" defaultValue={Number(t.price)} min="0" step="5" readOnly={!canManage}
+                        onBlur={(e) => canManage && updatePrice(t, e.target.value)} />
                     </td>
                   </tr>
                 ))}
@@ -138,7 +141,7 @@ export default function Settings() {
   )
 }
 
-function TeamCard({ members, canManage, onInvite, onChanged }) {
+function TeamCard({ members, canManage, clinicId, onInvite, onChanged }) {
   const [busyId, setBusyId] = useState(null)
   const [pwFor, setPwFor] = useState(null) // membership being given a new password
   const [pw, setPw] = useState('')
@@ -147,7 +150,7 @@ function TeamCard({ members, canManage, onInvite, onChanged }) {
 
   const call = async (m, body, okMsg) => {
     setBusyId(m.id)
-    const { data, error } = await sb.functions.invoke('manage-staff', { body: { membership_id: m.id, ...body } })
+    const { data, error } = await sb.functions.invoke('manage-staff', { body: { membership_id: m.id, clinic_id: clinicId, ...body } })
     setBusyId(null)
     if (error || data?.error) {
       let msg = data?.error || 'Something went wrong.'

@@ -1,76 +1,103 @@
-# Security fixes — 7 September 2026
+# Security and integrity fixes — 7 September 2026
 
-Follows the findings in [AUDIT-HANDOVER-2026-09-07.md](./AUDIT-HANDOVER-2026-09-07.md). This covers the
-first item of that report's recommended order ("restrict clinical/storage/rota policies; fix room
-renaming and current-user clinic selection"). The remaining six items are not done and are listed
-at the bottom.
+Follows the findings in [AUDIT-HANDOVER-2026-09-07.md](./AUDIT-HANDOVER-2026-09-07.md). Every finding
+was re-verified against the live project before being changed; every fix below is verified by
+`npm run test:rls` (29 checks against production, all passing at the time of writing) and by
+`npm run build`. Browser click-through of the signed-in screens was not part of this pass.
 
-## What was wrong, verified before fixing
+## Critical
 
-- 18 patient-linked tables (chart entries, clinical notes, invoices, payments, questionnaires, referrals,
-  recalls, lab cases, imaging refs, ortho/endo/implant/perio cases, routing slips, comms log, BPE/perio
-  exams) used a `FOR ALL` policy keyed on `patient_id IN (SELECT id FROM dental_patients)`. Because that
-  inner `SELECT` runs under RLS, and a portal patient can see their own row there, this silently gave
-  portal accounts INSERT/UPDATE/DELETE — not just read — on their own clinical and financial records,
-  via direct API calls that bypass the app UI and the `portal` edge function entirely.
-- `dental_practitioners` had `USING (true)` on its portal-read policy, and `dental_rota`'s policy
-  depended on practitioner visibility, so any authenticated user (staff at any clinic, or a patient
-  portal account) could read and write every clinic's rota.
-- [Settings.jsx](../src/pages/Settings.jsx) renamed a surgery's rota rooms with `.eq('room', s.name)`
-  and no clinic filter, so renaming e.g. "Surgery 1" could rewrite another clinic's rota rows sharing
-  that name. Confirmed as a live risk after seeding three new demo clinics that all default to
-  "Surgery 1" / "Surgery 2".
-- Storage bucket `dental-files` had the same `patient_id IN (SELECT id FROM dental_patients)` flaw,
-  giving a portal patient direct read/write/delete on files in their own patient folder.
-- [clinic.jsx](../src/clinic.jsx) selected the signed-in user's clinic with
-  `dental_memberships.select(...).limit(1)` and no `user_id` filter. Because colleagues' membership
-  rows at a shared clinic are also visible (for the Team card), this could non-deterministically pick
-  a colleague's row instead of the signed-in user's own.
+**Cross-tenant and portal-write leaks (RLS).** 18 patient-linked tables gave portal patients
+INSERT/UPDATE/DELETE on their own clinical and financial rows; `dental_rota` and the
+`dental-files` storage bucket were readable and writable across clinics by any authenticated user;
+`Settings.jsx` could rename another clinic's rota rooms; `clinic.jsx` could pick a colleague's
+membership. Fixed in migration `20260907_01_tenant_isolation.sql` plus code. Verified: portal
+patient rota visibility 65 → 0, portal writes rejected, staff scoped to own clinic.
 
-## What changed
+**Recall engine had no caller authorisation.** v5 requires either the scheduler secret
+(`dental_secrets.recall_engine`, readable only by the database and the service role; the cron job
+sends it as `x-recall-secret`) or an owner/admin session, in which case the run is scoped to that
+clinic. Reminders are claimed atomically before sending (no double-texting under concurrent runs),
+`sendSms` checks the HTTP response, and a failed send is logged as `[failed: …]` and never marked
+delivered. Verified: anonymous → 401, non-admin staff → 403.
 
-- Migration `fix_patient_linked_tenant_isolation` (applied directly to project `rqvmqvuijydrjjilqhhp`,
-  effective immediately, no deploy needed): rewrote the 18 tables' policies to
-  `patient_id IN (SELECT id FROM dental_patients WHERE clinic_id IN (SELECT dental_my_clinics()))`,
-  scoped `dental_rota` to `practitioner_id IN (... WHERE clinic_id IN (SELECT dental_my_clinics()))`,
-  tightened `dental_practitioners.portal_read` to `active = true`, and applied the same clinic-scoped
-  predicate to the `dental-files` storage policy.
-- `dental_ortho_instalments` and `dental_ortho_visits` needed no direct change — their policies key off
-  `dental_ortho_cases` visibility, which is now correctly scoped transitively.
-- `clinic.jsx` now filters the membership query by `auth.uid()` explicitly.
-- `Settings.jsx`'s `renameSurgery` now scopes the rota update to the clinic's own practitioner IDs, as
-  a second layer on top of the RLS fix.
+## High
 
-## Verification
+**Booking could double-book and skip availability checks.** `dental_appointments` now has an
+exclusion constraint (practitioner × time range, non-cancelled) and a duration check. All booking
+paths — staff diary and portal — call `dental_book_appointment()`, which validates clinic
+membership, active clinician, patient clinic, status, duration, and for the portal also rota day,
+09:00–17:00, 30-minute grid and 30-minute lead time, then inserts inside the same transaction.
+Verified: overlap → `slot_taken`; two concurrent bookings for one slot → exactly one succeeds; a
+raw insert cannot bypass the constraint.
 
-Ran against the live database (not a staging copy) using the Harbour demo staff account and the Mary
-portal patient account:
+**Signup verification could be bypassed.** `signup-clinic` v3 and `portal` v4 require a session
+whose verified email matches; the unverified `createUser` fallback is gone. Provisioning rolls back
+a half-created clinic on failure. Verified: unverified signup → 401.
 
-| Check | Before (per audit) | After |
-|---|---|---|
-| Rota rows visible to a portal patient | 65, across clinics | 0 |
-| Rota rows visible to Harbour staff belonging to another clinic | — | 0 of 15 |
-| Patients visible to Harbour staff | — | 12 (exactly their own) |
-| Portal patient INSERT into own `dental_chart_entries` | allowed | blocked by RLS |
-| Portal patient INSERT into own `dental_clinical_notes` | allowed | blocked by RLS |
-| Portal patient INSERT a fabricated `dental_payments` row | allowed | blocked by RLS |
-| Portal patient SELECT own appointments (legitimate portal use) | works | still works |
-| Harbour staff read/write their own clinic's rota and patient chart | works | still works |
+**Questionnaires overwrote clinician alerts.** Tablet and portal submissions are stored in
+`dental_questionnaires` with `source` and wait for review. The patient record shows them in a
+"Patient-reported medical history awaiting review" panel where a clinician either updates the
+alerts (editing the merged text first) or marks them reviewed with no change. Check-in also lists
+everything awaiting review.
 
-`npm run build` passes. This was API-level verification (signed-in Supabase client, real policies), not
-a browser click-through of the deployed site.
+**Tablet check-in exposed the staff session.** The tablet now opens the public `/#/kiosk` page
+and is never signed in. Reception creates a single-use, 30-minute, 6-digit code for one patient
+(`dental_checkin_sessions`); the `checkin` function exchanges it for the patient's first name and
+stores the answers. Verified: unknown code → 404.
 
-## Not done yet (from the audit's remaining priority order)
+**Chart history was destructive.** Chart entries and clinical notes can no longer be deleted
+(DELETE revoked) or edited (trigger). They are retired with `deleted_at / deleted_by /
+deleted_reason`, shown struck-through with the reason, and the "as of" chart shows exactly what
+stood on that date, including entries retired later. Entries now record an `author`. Verified:
+delete → permission denied; edit → rejected; retire → allowed and still on the record.
 
-1. Recall-engine caller authorisation, signup verification bypass removal, owner-account protection.
-2. Atomic booking (clinic/availability/duration/concurrency checked in one transaction, all booking paths).
-3. Non-destructive chart history, protected medical alerts, restricted tablet check-in sessions.
-4. Financial ledger correction (write-offs are still counted as collected revenue in Reports.jsx).
-5. Backend sources/schema versioned in the repo, staging environment, reproducible deploys.
-6. Real message/room-admission/trial-billing/export delivery, vendor integration validation.
-7. Broader role enforcement — most clinic-data policies still require membership only, not
-   owner/admin authority, so an ordinary staff member can still change clinic settings or add-on
-   toggles at the database level even though the UI hides those controls from them.
+**Write-offs inflated revenue.** Write-offs must be allocated to an invoice (check constraint) and
+are written per open invoice for the remaining balance; invoice status is derived from allocated
+payments by trigger, not set by the client. Reports excludes `write_off` from revenue collected and
+shows it separately. Verified: part payment → `part_paid`; lump write-off → rejected; allocated
+write-off → `paid`.
 
-Do not treat this pass as a full remediation. It closes the specific cross-tenant and portal-write
-leaks that were verified live; the items above are unchanged.
+**Role enforcement.** Changing practice details, add-ons, fees, surgeries, rota, templates and
+clinicians now requires owner/admin at the database level (`dental_is_admin`). Members keep read
+access. `manage-staff` v2: only an owner can change, reset or remove another owner; a password reset
+is refused for a login that also belongs to another clinic; owners can grant owner. `invite-staff`
+v3 and `manage-staff` accept an explicit `clinic_id` for multi-clinic users. Verified: non-admin
+update of clinic settings, fees and add-ons → 0 rows.
+
+## Medium
+
+- **Video rooms** use an unguessable `video_token` per appointment instead of the appointment id,
+  are readable only through RLS, and the join button is enabled only from 15 minutes before the
+  start to 2 hours after the end. A missing or inaccessible appointment shows a clear message.
+- **Perio plaque score** now uses every assessed site (pocket depth entered or plaque ticked) as its
+  denominator.
+- **Imaging bridge** strips quotes, shell metacharacters and control characters from patient
+  fields before building the command line, caps length, and validates the DOB format.
+- **New-clinic defaults** are copied from immutable snapshot tables (`dental_default_fees`,
+  `dental_default_templates`) rather than from the live "Dentora Dublin" demo clinic.
+- **Multi-clinic** users get a clinic switcher in the sidebar; the context is always the signed-in
+  user's own membership.
+- **Trial lifecycle**: `dental_clinics.plan` and `trial_ends_at` (30 days from signup); the app
+  shows a days-left banner and an ended-trial banner. Hard enforcement is deliberately not done —
+  it needs billing.
+- **Error handling** on the mutations touched in this pass (diary, billing, chart, settings) now
+  surfaces failures instead of reporting success.
+- **Backend is versioned**: `supabase/functions/*` and `supabase/migrations/*` are in the repo;
+  `scripts/rls-test.mjs` is the regression suite. Security advisor: `anon` execute revoked on the
+  helper functions.
+
+## Still open
+
+- Real SMS/WhatsApp delivery needs Twilio secrets on the recall engine; the sick-day, debt and
+  bulk-message paths still write `[demo]` entries to the comms log rather than sending.
+- Video admission is by unguessable token and join window; there is no provider-issued room
+  token (Jitsi public instance). For hard guarantees move to a provider with admission control.
+- Trial expiry is a banner, not a lock. Subscription billing, data export and claims submission
+  (PRSI/DTSS) are not built.
+- Leaked-password protection and `pg_net` schema placement are dashboard-only settings (Auth →
+  Password security; Database → Extensions).
+- No staging environment: migrations are applied to production. The SQL is committed so it can be
+  replayed, but a second project would be the proper next step.
+- Large tables are read without pagination; fine at current sizes.
+- Legacy `generate-insights` function from the previous project is still deployed and unused.
