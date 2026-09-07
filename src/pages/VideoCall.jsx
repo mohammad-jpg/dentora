@@ -34,7 +34,7 @@ export default function VideoCall({ staff = false }) {
       </div>
       {!joined ? (
         <div className="card card-pad" style={{ textAlign: 'center', padding: '48px 24px' }}>
-          <div style={{ fontSize: 40 }}>📹</div>
+          
           <p style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 17, marginTop: 10 }}>Ready to join?</p>
           <p className="small muted" style={{ marginTop: 6 }}>Your camera and microphone will be requested. The room is private to this appointment.</p>
           <button className="btn" style={{ marginTop: 18 }} onClick={() => setJoined(true)}>Join the call</button>

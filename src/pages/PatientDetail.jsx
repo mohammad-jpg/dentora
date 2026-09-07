@@ -47,7 +47,7 @@ export default function PatientDetail() {
             </div>
           </div>
           <span className={`badge ${SCHEME_META[p.scheme]?.cls || 'b-gray'}`} style={{ marginLeft: 8 }}>{SCHEME_META[p.scheme]?.label || p.scheme}</span>
-          {p.medical_alerts && <span className="badge b-red" style={{ marginLeft: 4 }}>⚠ {p.medical_alerts}</span>}
+          {p.medical_alerts && <span className="badge b-red" style={{ marginLeft: 4 }}>Alert · {p.medical_alerts}</span>}
         </div>
         <div className="row">
           <Link to="/patients" className="btn secondary sm">← All patients</Link>
@@ -197,7 +197,7 @@ function ChartTab({ patientId }) {
         )}
         {asOf && (
           <div className="badge b-amber" style={{ marginBottom: 10 }}>
-            📜 Viewing the chart as it stood on {new Date(asOf + 'T12:00').toLocaleDateString('en-IE')} — read-only
+            Viewing the chart as it stood on {new Date(asOf + 'T12:00').toLocaleDateString('en-IE')} — read-only
           </div>
         )}
         <Odontogram entries={visible} selectedTooth={tooth} onSelect={setTooth} dentition={dentition} />
@@ -509,7 +509,7 @@ function NotesTab({ patientId }) {
             placeholder="Type, insert a template, or hit Dictate and talk…" style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13 }} />
           <div className="row">
             <button className={`btn ${listening ? 'danger' : 'secondary'}`} onClick={toggleDictation}>
-              {listening ? '■ Stop dictating' : '🎤 Dictate'}
+              {listening ? 'Stop dictating' : 'Dictate'}
             </button>
             <button className="btn" style={{ flex: 1, justifyContent: 'center' }} disabled={!body.trim()} onClick={save}>Save note</button>
           </div>
@@ -535,7 +535,7 @@ function NotesTab({ patientId }) {
   )
 }
 
-const REF_KINDS = { xray: '🩻 X-ray', cbct: '🧠 CBCT (3D)', scan3d: '🦷 3D scan', photo: '📷 Photos', other: '📁 Other' }
+const REF_KINDS = { xray: 'X-ray', cbct: 'CBCT (3D)', scan3d: '3D scan', photo: 'Photos', other: 'Other' }
 const IMAGING_LABELS = { romexis: 'Romexis', csimaging: 'CS Imaging' }
 
 function ImagingTab({ patientId, patient }) {
@@ -619,13 +619,13 @@ function ImagingTab({ patientId, patient }) {
           Files & documents
           {imaging && (
             <button className="btn sm" style={{ background: 'var(--violet)' }} onClick={openInImaging}>
-              🩻 Open in {IMAGING_LABELS[imaging]}
+              Open in {IMAGING_LABELS[imaging]}
             </button>
           )}
         </div>
         <div className="row" style={{ marginBottom: 8 }}>
           <label className="btn secondary" style={{ cursor: 'pointer' }}>
-            {busy ? 'Uploading…' : '⬆ Attach file'}
+            {busy ? 'Uploading…' : 'Attach file'}
             <input type="file" style={{ display: 'none' }} onChange={upload} disabled={busy} />
           </label>
           <span className="small muted">X-ray exports, photos, STL/PLY, PDFs, patient emails, consent forms, referral replies — anything on the record, stored encrypted.</span>
@@ -738,8 +738,8 @@ function CommsTab({ patientId, patient }) {
   return (
     <div className="grid" style={{ gap: 16 }}>
       <div className="row">
-        <button className="btn secondary" onClick={() => send('sms')}>📱 Send SMS</button>
-        <button className="btn secondary" onClick={() => send('email')}>✉️ Send email</button>
+        <button className="btn secondary" onClick={() => send('sms')}>Send SMS</button>
+        <button className="btn secondary" onClick={() => send('email')}>Send email</button>
         <span className="small muted">Demo mode — messages are logged, not transmitted. Live SMS via Twilio ≈ €0.07/msg.</span>
       </div>
       <div className="card">

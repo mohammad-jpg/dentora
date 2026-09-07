@@ -7,8 +7,8 @@ import VideoCall from './VideoCall.jsx'
 // Patient portal: book appointments & video consults, see and cancel your own bookings.
 
 const REASONS = [
-  ['Check-up / exam', '🪥'], ['Hygiene / cleaning', '✨'], ['Toothache / emergency', '🚨'],
-  ['Whitening consult', '😁'], ['Follow-up', '🔁'], ['Something else', '💬'],
+  ['Check-up / exam'], ['Hygiene / cleaning'], ['Toothache / emergency'],
+  ['Whitening consult'], ['Follow-up'], ['Something else'],
 ]
 
 export default function Portal() {
@@ -67,7 +67,7 @@ function PortalHome() {
   return (
     <div className="portal-main">
       <div>
-        <div className="page-title">Hi{firstName ? ` ${firstName}` : ''} 👋</div>
+        <div className="page-title">Hi{firstName ? ` ${firstName}` : ''}</div>
         <div className="page-sub">Book a visit or jump into a video consultation.</div>
       </div>
       <Link to="/book" className="btn" style={{ justifyContent: 'center', padding: '14px 16px', fontSize: 15 }}>
@@ -76,7 +76,7 @@ function PortalHome() {
 
       {appts.length > 0 && (
         <Link to="/medical" className="appt-card" style={{ textDecoration: 'none' }}>
-          <div className="appt-date" style={{ background: 'var(--violet-soft)', color: 'var(--violet)' }}><b>📋</b></div>
+          <div className="appt-date"><b style={{ fontSize: 13 }}>Form</b></div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700 }}>Medical history</div>
             <div className="small muted">Fill it in from home before your visit — skip the waiting-room form.</div>
@@ -89,7 +89,7 @@ function PortalHome() {
         <div className="card-title" style={{ marginBottom: 10 }}>Upcoming</div>
         <div className="grid" style={{ gap: 10 }}>
           {upcoming.map((a) => <ApptCard key={a.id} a={a} onCancel={cancel} />)}
-          {upcoming.length === 0 && <div className="card card-pad empty">Nothing booked yet — tap the button above 👆</div>}
+          {upcoming.length === 0 && <div className="card card-pad empty">Nothing booked yet — tap the button above.</div>}
         </div>
       </div>
 
@@ -127,7 +127,7 @@ function ApptCard({ a, onCancel }) {
         <span>{d.toLocaleDateString('en-IE', { month: 'short' })}</span>
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 700 }}>{video ? '📹 ' : ''}{cleanReason(a.reason)}</div>
+        <div style={{ fontWeight: 700 }}>{video ? 'Video · ' : ''}{cleanReason(a.reason)}</div>
         <div className="small muted">
           {d.toLocaleDateString('en-IE', { weekday: 'long' })} at {fmtTime(a.starts_at)} · {a.practitioner?.name}
         </div>
@@ -198,7 +198,7 @@ function BookFlow() {
       if (f.prac && f.date) sb.functions.invoke('portal', { body: { action: 'slots', practitioner_id: f.prac.id, date: f.date } }).then(({ data: d2 }) => setSlots(d2?.slots || []))
       return
     }
-    toast(f.kind === 'video' ? 'Video consultation booked 📹' : 'Appointment booked 🎉')
+    toast(f.kind === 'video' ? 'Video consultation booked' : 'Appointment booked')
     nav('/')
   }
 
@@ -249,10 +249,10 @@ function BookFlow() {
         <Step n="3" title="What do you need?" done={!!reasonText.trim()}>
           <div className="row" style={{ marginBottom: 12 }}>
             <button className={`pick ${f.kind === 'visit' ? 'on' : ''}`} style={{ flex: 1 }} onClick={() => setF((x) => ({ ...x, kind: 'visit' }))}>
-              <b>🏥 In the practice</b><span>Come in to the clinic</span>
+              <b>In the practice</b><span>Come in to the clinic</span>
             </button>
             <button className={`pick ${f.kind === 'video' ? 'on' : ''}`} style={{ flex: 1 }} onClick={() => setF((x) => ({ ...x, kind: 'video' }))}>
-              <b>📹 Video consultation</b><span>Talk to your dentist online</span>
+              <b>Video consultation</b><span>Talk to your dentist online</span>
             </button>
           </div>
           <div className="pick-grid">
@@ -296,7 +296,7 @@ function BookFlow() {
       {ready && (
         <div className="card card-pad" style={{ borderLeft: '4px solid var(--teal)' }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>
-            {f.kind === 'video' ? '📹 Video consultation' : `🏥 ${f.clinic.name}`}
+            {f.kind === 'video' ? 'Video consultation' : f.clinic.name}
           </div>
           <div className="small muted" style={{ marginBottom: 12 }}>
             {cleanReasonLabel(reasonText)} with {f.prac.name} · {new Date(f.date + 'T00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' })} at {f.time}
@@ -341,7 +341,7 @@ function MedicalHistory() {
   if (done) {
     return (
       <div className="portal-main" style={{ textAlign: 'center', paddingTop: 70 }}>
-        <div style={{ fontSize: 48 }}>✅</div>
+        
         <div className="page-title" style={{ marginTop: 12 }}>Medical history saved</div>
         <div className="page-sub">Your dentist will see it before your appointment — no waiting-room forms for you.</div>
         <Link to="/" className="btn" style={{ marginTop: 24 }}>Back to home</Link>

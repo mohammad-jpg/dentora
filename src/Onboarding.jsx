@@ -7,7 +7,7 @@ import { useClinic } from './clinic.jsx'
 // First-login tour for a brand-new clinic. Shows until "Finish" stamps clinics.onboarded_at.
 const STEPS = [
   {
-    title: 'Welcome to Dentora 🎉',
+    title: 'Welcome to Dentora',
     body: (clinic) => (
       <>
         <p><b>{clinic.name}</b> is live — surgeries, rota and a full Irish fee schedule are already set up for you.</p>
@@ -31,8 +31,8 @@ const STEPS = [
     body: () => (
       <>
         <p>Two ways — pick whichever is easier:</p>
-        <p style={{ marginTop: 10 }}>🅐 <b>Do it yourself:</b> export patients from your old system as a spreadsheet (CSV), then use <b>Settings → Import patients</b>. Takes about 2 minutes.</p>
-        <p style={{ marginTop: 10 }}>🅑 <b>We do it for you — free:</b> send us whatever export your old system produces and we'll migrate it for you, usually the same day.</p>
+        <p style={{ marginTop: 10 }}><b>Option A — do it yourself:</b> export patients from your old system as a spreadsheet (CSV), then use <b>Settings → Import patients</b>. Takes about 2 minutes.</p>
+        <p style={{ marginTop: 10 }}><b>Option B — we do it for you, free:</b> send us whatever export your old system produces and we'll migrate it for you, usually the same day.</p>
       </>
     ),
   },
@@ -51,7 +51,7 @@ const STEPS = [
         <p style={{ marginTop: 8, padding: '10px 12px', background: 'var(--teal-soft)', borderRadius: 10, fontWeight: 700, wordBreak: 'break-all' }}>
           https://mohammad-jpg.github.io/dentora/
         </p>
-        <p style={{ marginTop: 10 }}>Put it in your SMS templates, your website and your Google profile. Automatic recall texts already include it. That's it — you're running. 🦷</p>
+        <p style={{ marginTop: 10 }}>Put it in your SMS templates, your website and your Google profile. Automatic recall texts already include it. That's it — you're running.</p>
       </>
     ),
   },
@@ -89,7 +89,7 @@ export default function Onboarding() {
         {step > 0 && <button className="btn secondary" onClick={() => setStep(step - 1)}>Back</button>}
         {!last
           ? <button className="btn" onClick={() => setStep(step + 1)}>Next</button>
-          : <button className="btn" onClick={() => finish()}>Finish — let's go</button>}
+          : <button className="btn" onClick={() => finish()}>Finish</button>}
       </div>
     </Modal>
   )

@@ -48,10 +48,10 @@ export default function Reports() {
       </div>
       <div className="content grid" style={{ gap: 18 }}>
         <div className="stats">
-          <Stat label="Revenue collected" value={euro(totalRevenue)} detail="all time (demo data)" icon="💶" />
-          <Stat label="Appointments" value={appts.length} detail="booked in system" color="var(--blue-soft)" icon="🗓️" />
-          <Stat label="FTA rate" value={`${ftaRate}%`} detail="failed to attend" color="var(--red-soft)" icon="🚫" />
-          <Stat label="Avg invoice" value={euro(invoices.length ? invoices.reduce((s, i) => s + Number(i.total), 0) / invoices.length : 0)} detail={`${invoices.length} invoices`} color="var(--violet-soft)" icon="🧾" />
+          <Stat label="Revenue collected" value={euro(totalRevenue)} detail="all time (demo data)" icon={null} />
+          <Stat label="Appointments" value={appts.length} detail="booked in system" icon={null} />
+          <Stat label="FTA rate" value={`${ftaRate}%`} detail="failed to attend" icon={null} />
+          <Stat label="Avg invoice" value={euro(invoices.length ? invoices.reduce((s, i) => s + Number(i.total), 0) / invoices.length : 0)} detail={`${invoices.length} invoices`} icon={null} />
         </div>
 
         <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
@@ -100,7 +100,7 @@ export default function Reports() {
                   <span className="muted">{euro(v)}</span>
                 </div>
                 <div style={{ height: 8, background: '#EEF3F2', borderRadius: 99 }}>
-                  <div style={{ height: 8, width: `${(v / maxItem) * 100}%`, background: 'linear-gradient(90deg, #12A3A1, #0E7C7B)', borderRadius: 99 }} />
+                  <div style={{ height: 8, width: `${(v / maxItem) * 100}%`, background: 'var(--accent)', borderRadius: 99 }} />
                 </div>
               </div>
             ))}

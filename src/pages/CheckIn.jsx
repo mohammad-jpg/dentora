@@ -49,7 +49,7 @@ export default function CheckIn() {
     return (
       <div className="content" style={{ maxWidth: 640, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 18 }}>
-          <div className="page-title">Hi {patient.first_name} 👋</div>
+          <div className="page-title">Hi {patient.first_name}</div>
           <div className="page-sub">Please answer a few questions about your health — it keeps your treatment safe.</div>
         </div>
         <div className="grid" style={{ gap: 14 }}>
@@ -93,7 +93,7 @@ export default function CheckIn() {
             <div><label className="field">Type your full name to sign</label>
               <input className="input" value={f.signature} onChange={(e) => setF((x) => ({ ...x, signature: e.target.value }))} placeholder={`${patient.first_name} ${patient.last_name}`} /></div>
             <button className="btn" style={{ padding: '14px', justifyContent: 'center', fontSize: 15 }} disabled={!ok} onClick={submit}>
-              Submit & hand back ✓
+              Submit & hand back
             </button>
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function CheckIn() {
   if (stage === 'done') {
     return (
       <div className="content" style={{ textAlign: 'center', paddingTop: 80 }}>
-        <div style={{ fontSize: 52 }}>🎉</div>
+        
         <div className="page-title" style={{ marginTop: 12 }}>All done, {patient.first_name}!</div>
         <div className="page-sub">Please hand the tablet back to reception — you'll be called shortly.</div>
         <button className="btn secondary" style={{ marginTop: 26 }} onClick={() => { setStage('pick'); setPatient(null); setQ('') }}>

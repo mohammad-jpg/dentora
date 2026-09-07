@@ -1,5 +1,16 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 
+// Brand mark: single-weight outline tooth
+export function ToothMark({ size = 16, color = '#fff', strokeWidth = 1.8 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8.4 3.5c-2.3 0-3.7 1.9-3.7 4.4 0 3.5 1.8 5.1 2.5 8.2.37 1.6.66 2.6 1.6 2.6s1.13-1.1 1.32-2.6c.28-1.8.76-3 2.88-3s2.6 1.2 2.88 3c.19 1.5.37 2.6 1.32 2.6s1.23-1 1.6-2.6c.7-3.1 2.5-4.7 2.5-8.2 0-2.5-1.4-4.4-3.7-4.4-1.8 0-2.5.85-4.6.85s-2.8-.85-4.6-.85Z"
+        stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function Modal({ title, onClose, children, wide = false }) {
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -12,12 +23,12 @@ export function Modal({ title, onClose, children, wide = false }) {
 }
 
 export const STATUS_META = {
-  booked: { label: 'Booked', cls: 'b-blue', color: '#2F6FD6' },
-  confirmed: { label: 'Confirmed', cls: 'b-teal', color: '#0E7C7B' },
-  arrived: { label: 'Arrived', cls: 'b-violet', color: '#7C5CBF' },
-  completed: { label: 'Completed', cls: 'b-green', color: '#2E9E6B' },
-  cancelled: { label: 'Cancelled', cls: 'b-gray', color: '#8A9AA1' },
-  fta: { label: 'FTA', cls: 'b-red', color: '#D64550' },
+  booked: { label: 'Booked', cls: 'b-blue', color: '#1D5FBF' },
+  confirmed: { label: 'Confirmed', cls: 'b-teal', color: '#0E6B66' },
+  arrived: { label: 'Arrived', cls: 'b-violet', color: '#6D5BAE' },
+  completed: { label: 'Completed', cls: 'b-green', color: '#1C7C4F' },
+  cancelled: { label: 'Cancelled', cls: 'b-gray', color: '#84949c' },
+  fta: { label: 'FTA', cls: 'b-red', color: '#B42332' },
 }
 
 export function StatusBadge({ status }) {

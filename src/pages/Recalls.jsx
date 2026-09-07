@@ -79,7 +79,7 @@ export default function Recalls() {
                   </td>
                 </tr>
               ))}
-              {recalls.length === 0 && <tr><td colSpan={5}><div className="empty">No open recalls 🎉</div></td></tr>}
+              {recalls.length === 0 && <tr><td colSpan={5}><div className="empty">No open recalls.</div></td></tr>}
             </tbody>
           </table>
         </div>

@@ -56,7 +56,7 @@ export default function Diary() {
     const top = ((s.getHours() - DAY_START) * 60 + s.getMinutes()) / SLOT_MIN * SLOT_PX
     const height = Math.max(SLOT_PX, ((e - s) / 60000) / SLOT_MIN * SLOT_PX - 3)
     const color = STATUS_META[a.status]?.color || '#2F6FD6'
-    return { top, height, background: color }
+    return { top, height, '--stripe': color, '--tint': color + '14' }
   }
 
   const save = async (form) => {
@@ -146,7 +146,7 @@ export default function Diary() {
                   <span style={{ color: p.color }}>●</span> {p.name}
                   <button title={`${p.name} called in sick? Cancel & rebook their day`}
                     onClick={() => setSickDay(p)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, marginLeft: 4, opacity: 0.6 }}>🤒</button>
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10.5, marginLeft: 6, color: 'var(--ink-40)', fontWeight: 600, textDecoration: 'underline' }}>absence</button>
                   <div className="role">{where}</div>
                 </div>
               )
@@ -265,7 +265,7 @@ function ApptModal({ appt, patients, pracs, onSave, onDelete, onClose }) {
       </div>
       {appt.id && /^\[Video\]/.test(appt.reason || '') && (
         <Link to={`/video/${appt.id}`} className="btn" style={{ width: '100%', justifyContent: 'center', marginTop: 16, background: 'var(--violet)' }}>
-          📹 Join video consultation
+          Join video consultation
         </Link>
       )}
       <div className="actions">

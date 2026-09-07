@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { sb } from './supabase.js'
 import Marketing from './Marketing.jsx'
+import { ToothMark } from './ui.jsx'
 
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
@@ -130,13 +131,9 @@ function ResetFlow({ onBack, sub }) {
 function Logo({ sub }) {
   return (
     <div className="logo" style={{ padding: 0, marginBottom: 20, justifyContent: 'center' }}>
-      <div className="logo-mark">
-        <svg width="22" height="22" viewBox="0 0 64 64">
-          <path d="M22 16c-5 0-8 4.5-8 10 0 8 4 12 5.5 19 .8 3.8 1.5 6 3.5 6s2.6-2.5 3-6c.5-4 1.6-7 6-7s5.5 3 6 7c.4 3.5 1 6 3 6s2.7-2.2 3.5-6C46 38 50 34 50 26c0-5.5-3-10-8-10-4 0-5.5 2-10 2s-6-2-10-2z" fill="#fff" />
-        </svg>
-      </div>
+      <div className="logo-mark" style={{ width: 34, height: 34, borderRadius: 9 }}><ToothMark size={19} /></div>
       <div>
-        <div className="logo-name" style={{ color: 'var(--ink)' }}>Dentora</div>
+        <div className="logo-name" style={{ color: 'var(--ink)', fontSize: 17 }}>Dentora</div>
         <div className="logo-sub">{sub}</div>
       </div>
     </div>
@@ -158,21 +155,21 @@ function Login() {
       <h1>The dental practice, <em>beautifully run</em>.</h1>
       <p className="tag">Diary, charting, notes, billing, recalls, online booking and video consultations — one system your whole practice will actually enjoy using.</p>
       <div className="chips">
-        <span>🗓️ Smart diary</span>
-        <span>🦷 Perio & charting</span>
-        <span>📱 Online booking</span>
-        <span>📹 Video consults</span>
-        <span>🤖 Automated recalls</span>
-        <span>🔒 GDPR-first</span>
+        <span>Smart diary</span>
+        <span>Perio & charting</span>
+        <span>Online booking</span>
+        <span>Video consults</span>
+        <span>Automated recalls</span>
+        <span>GDPR-first</span>
       </div>
       <div className="doors">
         <button className="door" onClick={() => setMode('patient')}>
-          <span className="emoji">😁</span>
+          
           <b>I'm a patient</b>
           <p>Book an appointment or video consultation with your dentist in under a minute.</p>
         </button>
         <button className="door" onClick={() => setMode('staff')}>
-          <span className="emoji">🦷</span>
+          
           <b>Practice staff</b>
           <p>Sign in to your diary, patients and billing — or set up a brand-new clinic in 60 seconds.</p>
         </button>

@@ -52,7 +52,7 @@ export default function Patients() {
           <label className="row small muted" style={{ gap: 5, cursor: 'pointer' }}>
             <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> archived
           </label>
-          <button className="btn secondary" onClick={() => setBlast(true)} disabled={filtered.length === 0}>💬 Text these {filtered.length}</button>
+          <button className="btn secondary" onClick={() => setBlast(true)} disabled={filtered.length === 0}>Message {filtered.length}</button>
           <button className="btn" onClick={() => setAdding(true)}>+ New patient</button>
         </div>
       </div>
@@ -77,7 +77,7 @@ export default function Patients() {
                   <td>{age(p.dob) ?? '—'}</td>
                   <td>{p.phone || '—'}</td>
                   <td className="muted">{p.email || '—'}</td>
-                  <td>{p.medical_alerts ? <span className="badge b-red">⚠ {p.medical_alerts}</span> : <span className="muted">None</span>}</td>
+                  <td>{p.medical_alerts ? <span className="badge b-red">{p.medical_alerts}</span> : <span className="muted">None</span>}</td>
                   <td className="muted">{fmtDate(p.created_at)}</td>
                 </tr>
               ))}

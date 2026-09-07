@@ -46,7 +46,7 @@ export default function Dashboard() {
     <>
       <div className="topbar">
         <div>
-          <div className="page-title">{greeting} 👋</div>
+          <div className="page-title">Today</div>
           <div className="page-sub">{today} · here's how {clinic.name} looks</div>
         </div>
         <Link to="/diary" className="btn">Open diary</Link>
@@ -63,10 +63,10 @@ export default function Dashboard() {
           </div>
         )}
         <div className="stats">
-          <Stat label="Appointments today" value={appts.length} detail={`${seen} arrived or seen`} icon="🗓️" />
-          <Stat label="Chair utilisation" value={appts.length ? `${Math.min(100, Math.round((appts.length / 14) * 100))}%` : '0%'} detail="of bookable slots" color="var(--violet-soft)" icon="🪥" />
-          <Stat label="Outstanding balances" value={euro(outstanding)} detail="across all patients" color="var(--coral-soft)" icon="💶" />
-          <Stat label="Recalls due" value={recallsDue} detail="patients to contact" color="var(--amber-soft)" icon="🔔" />
+          <Stat label="Appointments today" value={appts.length} detail={`${seen} arrived or seen`} icon={null} />
+          <Stat label="Chair utilisation" value={appts.length ? `${Math.min(100, Math.round((appts.length / 14) * 100))}%` : '0%'} detail="of bookable slots" icon={null} />
+          <Stat label="Outstanding balances" value={euro(outstanding)} detail="across all patients" icon={null} />
+          <Stat label="Recalls due" value={recallsDue} detail="patients to contact" icon={null} />
         </div>
 
         <div className="grid" style={{ gridTemplateColumns: '1.6fr 1fr' }}>
@@ -98,7 +98,7 @@ export default function Dashboard() {
               Open tasks
               <Link to="/tasks" className="small" style={{ color: 'var(--teal)', fontWeight: 600 }}>All tasks →</Link>
             </div>
-            {tasks.length === 0 && <div className="empty">All caught up 🎉</div>}
+            {tasks.length === 0 && <div className="empty">No open tasks.</div>}
             <div className="grid" style={{ gap: 10 }}>
               {tasks.map((t) => (
                 <div key={t.id} className="spread" style={{ padding: '10px 12px', background: 'var(--mint-bg)', borderRadius: 10 }}>

@@ -175,13 +175,13 @@ export function PerioModal({ patientId, examiner, onClose }) {
             else { setViewing(null); setData(exams[0] ? structuredClone(exams[0].data) : {}) }
           }}>
           <option value="">✏️ New exam{exams[0] ? ' (prefilled from last)' : ''}</option>
-          {exams.map((ex) => <option key={ex.id} value={ex.id}>📜 {fmtDate(ex.created_at)} — {ex.examiner || 'unknown'}</option>)}
+          {exams.map((ex) => <option key={ex.id} value={ex.id}>{fmtDate(ex.created_at)} — {ex.examiner || 'unknown'}</option>)}
         </select>
         <span className="badge b-teal">{stats.sites} sites charted</span>
         <span className={`badge ${stats.deep ? 'b-red' : 'b-green'}`}>{stats.deep} pockets ≥4mm</span>
         <span className={`badge ${stats.plaquePct > 30 ? 'b-amber' : 'b-green'}`}>Plaque score {stats.plaquePct}%</span>
       </div>
-      {readOnly && <div className="badge b-amber" style={{ marginBottom: 10 }}>📜 Viewing a past exam — read-only. Switch to "New exam" to chart.</div>}
+      {readOnly && <div className="badge b-amber" style={{ marginBottom: 10 }}>Viewing a past exam — read-only. Switch to "New exam" to chart.</div>}
       <div className="grid" style={{ gap: 14 }}>
         <PerioGrid teeth={UPPER} side="b" data={data} setData={setData} readOnly={readOnly} />
         <PerioGrid teeth={UPPER} side="l" data={data} setData={setData} readOnly={readOnly} />

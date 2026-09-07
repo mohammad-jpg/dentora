@@ -475,7 +475,7 @@ function ImportCard({ clinicId }) {
             Prefer not to? <b>Send us the export and we'll migrate it for you, free.</b>
           </p>
           <label className="btn secondary" style={{ cursor: 'pointer', justifyContent: 'center' }}>
-            📄 Choose CSV file
+            Choose CSV file
             <input type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onFile} />
           </label>
           {result && <div className="badge b-green">Last import: {result.done} added{result.failed ? `, ${result.failed} failed` : ''}</div>}

@@ -1,18 +1,29 @@
 import { useState } from 'react'
 import { sb } from './supabase.js'
-import { Modal } from './ui.jsx'
+import { Modal, ToothMark } from './ui.jsx'
 
 // Conversion landing page for practice owners: free trial or book a demo.
 
+const FI = {
+  cal: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>,
+  chart: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3v18M5 8l7-5 7 5M5 8v8m14-8v8M5 16l7 5 7-5"/></svg>,
+  phone: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>,
+  bell: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>,
+  doc: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 2.5h8l4 4V21.5H6z"/><path d="M14 2.5v4h4M9 12h6M9 16h6"/></svg>,
+  euro: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17.5 5.5A7.5 7.5 0 1 0 17.5 18.5M4 10h9M4 14h9"/></svg>,
+  xray: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M12 7v10M8.5 9.5h7M9.5 12h5M10.5 14.5h3"/></svg>,
+  lock: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>,
+}
+
 const FEATURES = [
-  ['🗓️', 'A diary your team will love', 'Colour-coded columns per clinician, live now-line, one-click booking, sick-day rebooking that texts every affected patient.'],
-  ['🦷', 'Real clinical charting', 'FDI odontogram with history, baby teeth (ABCDE), root surfaces, BPE with BSP flags and full 6-point perio charting.'],
-  ['📱', 'Patients book themselves', 'Your own online booking portal with live availability — plus video consultations with a private room per appointment.'],
-  ['🤖', 'Recalls that run themselves', 'Automatic texts a week before and the day before, with your booking link. Chairs stay full while reception sleeps.'],
-  ['📝', 'Notes in seconds', 'Per-procedure templates and voice dictation. The nurse-to-desk handover sheet replaces paper and scanning.'],
-  ['💶', 'Billing without friction', 'Fee schedule seeded with Irish pricing, per-case price adjustment, part-payments and outstanding-balance tracking.'],
-  ['🩻', 'Plays nice with your X-rays', 'One-click open in Romexis or CS Imaging via the free bridge, plus a register for CBCTs and 3D scans.'],
-  ['🔒', 'GDPR-first, EU-hosted', 'Per-clinic isolation enforced in the database, staff logins with roles, daily backups, your data exported any time.'],
+  [FI.cal, 'A diary your team will actually like', 'Colour-coded columns per clinician, live time indicator, one-click booking, and sick-day rebooking that texts every affected patient.'],
+  [FI.chart, 'Proper clinical charting', 'FDI odontogram with full history, primary dentition, root surfaces, BPE with BSP flags and 6-point periodontal charting.'],
+  [FI.phone, 'Patients book themselves', 'Your own online booking page with live availability, plus video consultations with a private room per appointment.'],
+  [FI.bell, 'Recalls that run themselves', 'Automatic texts a week before and the day before, with your booking link included. Editable templates, sensible limits.'],
+  [FI.doc, 'Notes in seconds', 'Per-procedure note templates and voice dictation. Digital handover sheets replace the paper-and-scanner routine.'],
+  [FI.euro, 'Billing without friction', 'A fee schedule seeded with Irish pricing, per-case adjustments, part-payments, ageing debts and write-offs.'],
+  [FI.xray, 'Works with your imaging', 'One-click open in Romexis or CS Imaging via the free bridge, and a register for CBCTs and 3D scans.'],
+  [FI.lock, 'GDPR-first, EU-hosted', 'Per-clinic isolation enforced at the database level, role-based staff logins, daily backups, full export any time.'],
 ]
 
 const FAQS = [
@@ -30,12 +41,8 @@ export default function Marketing({ onTrial, onStaff, onPatient }) {
     <div className="mk">
       <header className="mk-head">
         <div className="row" style={{ gap: 9 }}>
-          <div className="logo-mark" style={{ width: 34, height: 34, borderRadius: 10 }}>
-            <svg width="18" height="18" viewBox="0 0 64 64">
-              <path d="M22 16c-5 0-8 4.5-8 10 0 8 4 12 5.5 19 .8 3.8 1.5 6 3.5 6s2.6-2.5 3-6c.5-4 1.6-7 6-7s5.5 3 6 7c.4 3.5 1 6 3 6s2.7-2.2 3.5-6C46 38 50 34 50 26c0-5.5-3-10-8-10-4 0-5.5 2-10 2s-6-2-10-2z" fill="#fff" />
-            </svg>
-          </div>
-          <b style={{ fontFamily: 'var(--font-display)', fontSize: 17, letterSpacing: '-0.02em' }}>Dentora</b>
+          <div className="logo-mark" style={{ width: 30, height: 30 }}><ToothMark size={17} /></div>
+          <b style={{ fontSize: 16, letterSpacing: '-0.02em', fontWeight: 700 }}>Dentora</b>
         </div>
         <nav>
           <a href="#features">Features</a>
@@ -49,19 +56,19 @@ export default function Marketing({ onTrial, onStaff, onPatient }) {
 
       <section className="mk-hero">
         <div>
-          <span className="mk-eyebrow">🇮🇪 Built hands-on with working dentists</span>
-          <h1>The dental practice, <em>beautifully run</em>.</h1>
+          <span className="mk-eyebrow">Built with working dentists in Ireland</span>
+          <h1>The complete system for running a modern dental practice.</h1>
           <p className="sub">
-            Diary, charting, perio, notes, billing, automated recalls, online booking and video consultations —
-            one modern system, one flat price, live in your practice today.
+            Diary, clinical charting, notes, billing, automated recalls, online booking and video
+            consultations in one place — flat pricing per practice, live the same day you sign up.
           </p>
           <div className="mk-ctas">
             <button className="btn" onClick={onTrial}>Start your free 30-day trial</button>
-            <button className="btn secondary" onClick={() => setDemo(true)} style={{ padding: '13px 22px', fontSize: 15, borderRadius: 13 }}>
-              📅 Book a demo
+            <button className="btn secondary" onClick={() => setDemo(true)} style={{ padding: '11px 18px', fontSize: 14.5 }}>
+              Book a demo
             </button>
           </div>
-          <p className="mk-trust">No card required · set up in 60 seconds · cancel anytime · your data exported on exit</p>
+          <p className="mk-trust">No card required · set up in minutes · cancel any time · your data exported on exit</p>
         </div>
         <HeroMock />
       </section>
@@ -152,7 +159,7 @@ export default function Marketing({ onTrial, onStaff, onPatient }) {
           <p>Start the free trial yourself in a minute — or book a 20-minute demo and we'll set your clinic up with you, live on the call.</p>
           <div className="mk-ctas" style={{ justifyContent: 'center' }}>
             <button className="btn" onClick={onTrial}>Start free trial</button>
-            <button className="btn secondary" onClick={() => setDemo(true)} style={{ padding: '13px 22px', fontSize: 15, borderRadius: 13 }}>📅 Book a demo</button>
+            <button className="btn secondary" onClick={() => setDemo(true)} style={{ padding: '11px 18px', fontSize: 14.5 }}>Book a demo</button>
           </div>
         </div>
       </section>
@@ -172,14 +179,14 @@ export default function Marketing({ onTrial, onStaff, onPatient }) {
 
 function HeroMock() {
   const chips = [
-    // [col(1-3), top(px), height, color, label]
-    [1, 4, 30, '#2F6FD6', '09:00 · Exam'],
-    [2, 4, 64, '#0E7C7B', '09:00 · Crown prep'],
-    [3, 38, 30, '#E07A3F', '09:30 · Hygiene'],
-    [1, 72, 30, '#7C5CBF', '10:00 · Video consult'],
-    [3, 106, 64, '#2F6FD6', '10:30 · Fillings ×2'],
-    [2, 106, 30, '#23926A', '10:30 · Check-up'],
-    [1, 140, 30, '#0E7C7B', '11:00 · Whitening'],
+    // [col(1-3), top(px), height, stripe, tint, label]
+    [1, 4, 30, '#1D5FBF', '#EAF1FB', '09:00 · Exam'],
+    [2, 4, 64, '#0E6B66', '#EAF3F2', '09:00 · Crown prep'],
+    [3, 38, 30, '#92610A', '#FAF3E2', '09:30 · Hygiene'],
+    [1, 72, 30, '#6D5BAE', '#F0EDF9', '10:00 · Video consult'],
+    [3, 106, 64, '#1D5FBF', '#EAF1FB', '10:30 · Fillings ×2'],
+    [2, 106, 30, '#1C7C4F', '#E8F4EE', '10:30 · Check-up'],
+    [1, 140, 30, '#0E6B66', '#EAF3F2', '11:00 · Whitening'],
   ]
   const rows = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30']
   return (
@@ -188,9 +195,9 @@ function HeroMock() {
       <div className="mk-mini">
         <div className="mh">
           <div />
-          <div>🟢 Dr. Kelly</div>
-          <div>🟣 Dr. O'Brien</div>
-          <div>🟠 Emma (Hyg.)</div>
+          <div>Dr. Kelly</div>
+          <div>Dr. O'Brien</div>
+          <div>E. Walsh (Hyg.)</div>
         </div>
         <div style={{ position: 'relative' }}>
           {rows.map((t) => (
@@ -199,10 +206,10 @@ function HeroMock() {
               <div className="mcell" /><div className="mcell" /><div className="mcell" />
             </div>
           ))}
-          {chips.map(([col, top, h, color, label], i) => (
+          {chips.map(([col, top, h, stripe, tint, label], i) => (
             <div className="mk-chip" key={'c' + i}
               style={{
-                top, height: h, background: color,
+                top, height: h, '--stripe': stripe, '--tint': tint,
                 left: `calc(44px + (100% - 44px) * ${(col - 1) / 3} + 3px)`,
                 width: `calc((100% - 44px) / 3 - 6px)`,
               }}>
@@ -233,10 +240,10 @@ function DemoModal({ onClose }) {
 
   if (sent) {
     return (
-      <Modal title="You're booked in 🎉" onClose={onClose}>
+      <Modal title="Demo request received" onClose={onClose}>
         <p className="small" style={{ color: 'var(--ink-60)', lineHeight: 1.6 }}>
-          Thanks {f.name.split(' ')[0]} — we'll confirm your demo time by email within a few hours.
-          Fancy a head start? The free trial takes 60 seconds and the demo works on your own clinic.
+          Thanks {f.name.split(' ')[0]} — we'll confirm a time by email shortly. If you'd like a head
+          start, the free trial takes about a minute and the demo can then run on your own clinic.
         </p>
         <div className="actions"><button className="btn" onClick={onClose}>Done</button></div>
       </Modal>
