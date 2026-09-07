@@ -99,6 +99,7 @@ export default function Settings() {
 
             <TemplatesCard clinicId={clinicId} />
             <MessagesCard clinicId={clinicId} />
+            <ImportCard clinicId={clinicId} />
 
             <CliniciansCard pracs={pracs} clinicId={clinicId} canManage={['owner', 'admin'].includes(role)} onChanged={load} />
           </div>
@@ -343,6 +344,164 @@ function TemplatesCard({ clinicId }) {
             <button className="btn" onClick={save}>Save template</button>
           </div>
         </Modal>
+      )}
+    </div>
+  )
+}
+
+// Patient migration, option A: self-serve CSV import from any old system's export.
+function parseCSV(text) {
+  const rows = []
+  let row = [], cur = '', inQ = false
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]
+    if (inQ) {
+      if (c === '"' && text[i + 1] === '"') { cur += '"'; i++ }
+      else if (c === '"') inQ = false
+      else cur += c
+    } else if (c === '"') inQ = true
+    else if (c === ',') { row.push(cur); cur = '' }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++
+      row.push(cur); cur = ''
+      if (row.some((v) => v.trim())) rows.push(row)
+      row = []
+    } else cur += c
+  }
+  row.push(cur)
+  if (row.some((v) => v.trim())) rows.push(row)
+  return rows
+}
+
+const IMPORT_FIELDS = [
+  ['first_name', ['first', 'firstname', 'first name', 'forename', 'given']],
+  ['last_name', ['last', 'lastname', 'last name', 'surname', 'family']],
+  ['name', ['name', 'patient', 'patient name', 'full name']],
+  ['dob', ['dob', 'date of birth', 'birth', 'birthdate', 'born']],
+  ['phone', ['phone', 'mobile', 'tel', 'telephone', 'contact']],
+  ['email', ['email', 'e-mail', 'mail']],
+  ['address', ['address', 'addr']],
+  ['medical_alerts', ['medical', 'alerts', 'allergies', 'medical alerts', 'notes']],
+  ['scheme', ['scheme', 'type', 'category', 'gms', 'status']],
+]
+
+function normDob(v) {
+  if (!v) return null
+  const s = v.trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  const m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/)
+  if (m) {
+    let y = m[3].length === 2 ? (Number(m[3]) > 30 ? '19' + m[3] : '20' + m[3]) : m[3]
+    return `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  }
+  return null
+}
+function normScheme(v) {
+  const s = (v || '').toLowerCase()
+  if (s.includes('gms') || s.includes('medical')) return 'medical_card'
+  if (s.includes('prsi')) return 'prsi'
+  return 'private'
+}
+
+function ImportCard({ clinicId }) {
+  const [rows, setRows] = useState(null) // parsed data rows
+  const [map, setMap] = useState({}) // field -> column index
+  const [headers, setHeaders] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState(null)
+  const toast = useToast()
+
+  const onFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const text = await file.text()
+    const parsed = parseCSV(text)
+    if (parsed.length < 2) return toast('That file looks empty — export your patients as CSV and try again.')
+    const hdr = parsed[0].map((h) => h.trim())
+    setHeaders(hdr)
+    setRows(parsed.slice(1))
+    // auto-guess column mapping
+    const guess = {}
+    hdr.forEach((h, idx) => {
+      const lh = h.toLowerCase()
+      for (const [field, aliases] of IMPORT_FIELDS) {
+        if (guess[field] === undefined && aliases.some((a) => lh.includes(a))) { guess[field] = idx; break }
+      }
+    })
+    setMap(guess)
+    setResult(null)
+  }
+
+  const doImport = async () => {
+    setBusy(true)
+    const get = (r, field) => (map[field] !== undefined ? (r[map[field]] || '').trim() : '')
+    const patients = rows.map((r) => {
+      let first = get(r, 'first_name'), last = get(r, 'last_name')
+      if (!first && !last) {
+        const full = get(r, 'name')
+        const parts = full.split(/\s+/)
+        first = parts.slice(0, -1).join(' ') || parts[0] || ''
+        last = parts.length > 1 ? parts[parts.length - 1] : '(imported)'
+      }
+      return {
+        clinic_id: clinicId,
+        first_name: first || '(unknown)', last_name: last || '(imported)',
+        dob: normDob(get(r, 'dob')), phone: get(r, 'phone') || null, email: get(r, 'email') || null,
+        address: get(r, 'address') || null, medical_alerts: get(r, 'medical_alerts') || null,
+        scheme: normScheme(get(r, 'scheme')), notes: 'Imported ' + new Date().toLocaleDateString('en-IE'),
+      }
+    }).filter((p) => p.first_name !== '(unknown)' || p.phone || p.email)
+    let done = 0, failed = 0
+    for (let i = 0; i < patients.length; i += 100) {
+      const { error } = await sb.from('dental_patients').insert(patients.slice(i, i + 100))
+      if (error) failed += patients.slice(i, i + 100).length
+      else done += patients.slice(i, i + 100).length
+    }
+    setBusy(false)
+    setResult({ done, failed })
+    setRows(null)
+    toast(`Imported ${done} patient(s)${failed ? ` · ${failed} failed` : ''}`)
+  }
+
+  return (
+    <div className="card card-pad">
+      <div className="card-title">Import patients</div>
+      {!rows && (
+        <div className="grid" style={{ gap: 10 }}>
+          <p className="small muted" style={{ lineHeight: 1.6 }}>
+            Moving from another system? Export your patients as a <b>CSV spreadsheet</b> and drop it here —
+            we auto-detect names, DOB, phone, email, address, medical alerts and scheme.
+            Prefer not to? <b>Send us the export and we'll migrate it for you, free.</b>
+          </p>
+          <label className="btn secondary" style={{ cursor: 'pointer', justifyContent: 'center' }}>
+            📄 Choose CSV file
+            <input type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onFile} />
+          </label>
+          {result && <div className="badge b-green">Last import: {result.done} added{result.failed ? `, ${result.failed} failed` : ''}</div>}
+        </div>
+      )}
+      {rows && (
+        <div className="grid" style={{ gap: 10 }}>
+          <div className="badge b-teal">{rows.length} row(s) found — check the column matching below</div>
+          {IMPORT_FIELDS.filter(([f]) => f !== 'name').map(([field]) => (
+            <div className="spread" key={field}>
+              <span className="small" style={{ fontWeight: 600 }}>{field.replace('_', ' ')}</span>
+              <select className="input" style={{ width: 190, padding: '5px 8px' }}
+                value={map[field] ?? ''}
+                onChange={(e) => setMap((m) => ({ ...m, [field]: e.target.value === '' ? undefined : Number(e.target.value) }))}>
+                <option value="">— not in file —</option>
+                {headers.map((h, i) => <option key={i} value={i}>{h}</option>)}
+              </select>
+            </div>
+          ))}
+          <div className="row">
+            <button className="btn secondary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setRows(null)}>Cancel</button>
+            <button className="btn" style={{ flex: 1, justifyContent: 'center' }} disabled={busy} onClick={doImport}>
+              {busy ? 'Importing…' : `Import ${rows.length} patients`}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

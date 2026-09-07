@@ -3,6 +3,7 @@ import { NavLink, Route, Routes } from 'react-router-dom'
 import { ToastProvider } from './ui.jsx'
 import { AuthProvider } from './auth.jsx'
 import { ClinicProvider, useClinic } from './clinic.jsx'
+import Onboarding from './Onboarding.jsx'
 import { sb } from './supabase.js'
 import Referrals from './pages/Referrals.jsx'
 import Handover from './pages/Handover.jsx'
@@ -88,6 +89,7 @@ function Shell() {
   const [navOpen, setNavOpen] = useState(false)
   return (
       <div className="shell">
+        <Onboarding />
         <aside className={`sidebar ${navOpen ? 'open' : ''}`}>
           <div className="logo">
             <div className="logo-mark">

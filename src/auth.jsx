@@ -15,8 +15,116 @@ export function AuthProvider({ children }) {
   }, [])
 
   if (session === undefined) return <div className="login-wrap"><div className="muted">Loading…</div></div>
-  if (!session) return <Login />
+  // during signup/reset, verifying the email code creates a session mid-flow —
+  // keep showing the flow until it finishes (it reloads the page when done)
+  if (!session || window.__dentoraAuthHold) return <Login />
   return <AuthCtx.Provider value={session}>{children}</AuthCtx.Provider>
+}
+
+// --- shared email-code verification step (Supabase built-in mailer, works with no domain) ---
+function CodeStep({ email, onVerified, onBack, intro }) {
+  const [code, setCode] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [resent, setResent] = useState(false)
+
+  const verify = async () => {
+    setBusy(true); setErr('')
+    const { data, error } = await sb.auth.verifyOtp({ email, token: code.trim(), type: 'email' })
+    setBusy(false)
+    if (error || !data?.session) return setErr('That code isn’t right or has expired — check the email and try again.')
+    onVerified()
+  }
+  const resend = async () => {
+    setErr('')
+    const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
+    if (error) setErr(error.message)
+    else setResent(true)
+  }
+
+  return (
+    <div className="grid" style={{ gap: 12 }}>
+      <p className="small" style={{ color: 'var(--ink-60)', lineHeight: 1.6 }}>
+        {intro || <>We've emailed a 6-digit code to <b>{email}</b> to verify it's really you.</>}
+      </p>
+      <div>
+        <label className="field">Enter the 6-digit code</label>
+        <input className="input" inputMode="numeric" maxLength={8} value={code} autoFocus
+          style={{ fontSize: 22, letterSpacing: '0.35em', textAlign: 'center', fontFamily: 'var(--font-display)', fontWeight: 700 }}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={(e) => e.key === 'Enter' && code.length >= 6 && verify()} />
+      </div>
+      {err && <div className="small" style={{ color: 'var(--red)' }}>{err}</div>}
+      <button className="btn" style={{ justifyContent: 'center' }} disabled={code.length < 6 || busy} onClick={verify}>
+        {busy ? 'Checking…' : 'Verify email'}
+      </button>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <button className="btn ghost sm" onClick={onBack}>← Back</button>
+        <button className="btn ghost sm" onClick={resend} disabled={resent}>{resent ? 'Code re-sent ✓' : 'Resend code'}</button>
+      </div>
+      <p className="small muted">No email after a minute? Check spam — it comes from Supabase Auth (our secure login provider).</p>
+    </div>
+  )
+}
+
+// --- forgot password: email code → new password ---
+function ResetFlow({ onBack, sub }) {
+  const [stage, setStage] = useState('email') // email | code | password
+  const [email, setEmail] = useState('')
+  const [pw, setPw] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const send = async () => {
+    setBusy(true); setErr('')
+    window.__dentoraAuthHold = true
+    const { error } = await sb.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } })
+    setBusy(false)
+    if (error) return setErr(/not found|Signups/i.test(error.message) ? 'No account with that email.' : error.message)
+    setStage('code')
+  }
+  const save = async () => {
+    setBusy(true); setErr('')
+    const { error } = await sb.auth.updateUser({ password: pw })
+    setBusy(false)
+    if (error) return setErr(error.message)
+    window.__dentoraAuthHold = false
+    window.location.reload()
+  }
+
+  return (
+    <div className="login-wrap">
+      <div className="login-card">
+        <Logo sub={sub || 'Reset your password'} />
+        {stage === 'email' && (
+          <div className="grid" style={{ gap: 12 }}>
+            <div><label className="field">Your account email</label>
+              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && /.+@.+\..+/.test(email) && send()} /></div>
+            {err && <div className="small" style={{ color: 'var(--red)' }}>{err}</div>}
+            <button className="btn" style={{ justifyContent: 'center' }} disabled={!/.+@.+\..+/.test(email) || busy} onClick={send}>
+              {busy ? 'Sending…' : 'Email me a code'}
+            </button>
+            <button className="btn ghost" style={{ justifyContent: 'center' }} onClick={() => { window.__dentoraAuthHold = false; onBack() }}>← Back to sign in</button>
+          </div>
+        )}
+        {stage === 'code' && (
+          <CodeStep email={email.trim()} onBack={() => setStage('email')} onVerified={() => setStage('password')}
+            intro={<>We've emailed a 6-digit code to <b>{email.trim()}</b>. Enter it, then choose a new password.</>} />
+        )}
+        {stage === 'password' && (
+          <div className="grid" style={{ gap: 12 }}>
+            <div><label className="field">Choose a new password (8+ characters)</label>
+              <input className="input" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus /></div>
+            {err && <div className="small" style={{ color: 'var(--red)' }}>{err}</div>}
+            <button className="btn" style={{ justifyContent: 'center' }} disabled={pw.length < 8 || busy} onClick={save}>
+              {busy ? 'Saving…' : 'Save & sign in'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function Logo({ sub }) {
@@ -40,9 +148,10 @@ function Login() {
   if (mode === 'landing') {
     return <Marketing onTrial={() => setMode('staff-signup')} onStaff={() => setMode('staff')} onPatient={() => setMode('patient')} />
   }
-  if (mode === 'staff') return <SignIn onSignup={() => setMode('staff-signup')} onHome={() => setMode('landing')} />
+  if (mode === 'staff') return <SignIn onSignup={() => setMode('staff-signup')} onHome={() => setMode('landing')} onReset={() => setMode('reset')} />
   if (mode === 'staff-signup') return <SignupWizard onBack={() => setMode('staff')} />
-  if (mode === 'patient') return <PatientAuth onHome={() => setMode('landing')} />
+  if (mode === 'patient') return <PatientAuth onHome={() => setMode('landing')} onReset={() => setMode('reset')} />
+  if (mode === 'reset') return <ResetFlow onBack={() => setMode('landing')} />
   return (
     <div className="landing">
       <Logo sub="Practice OS" />
@@ -73,8 +182,9 @@ function Login() {
   )
 }
 
-function PatientAuth({ onHome }) {
+function PatientAuth({ onHome, onReset }) {
   const [tab, setTab] = useState('signin')
+  const [stage, setStage] = useState('form') // form | verify
   const [f, setF] = useState({ full_name: '', phone: '', email: '', password: '' })
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
   const [err, setErr] = useState('')
@@ -87,13 +197,33 @@ function PatientAuth({ onHome }) {
   }
   const signUp = async () => {
     setBusy(true); setErr('')
+    window.__dentoraAuthHold = true
+    const { error } = await sb.auth.signInWithOtp({ email: f.email.trim(), options: { shouldCreateUser: true } })
+    setBusy(false)
+    if (error) return setErr(/rate/i.test(error.message) ? 'Too many codes requested — wait a few minutes and try again.' : error.message)
+    setStage('verify')
+  }
+  const completeSignup = async () => {
     const { data, error } = await sb.functions.invoke('portal', { body: { action: 'signup', ...f } })
     if (error || data?.error) {
       let msg = data?.error || 'Something went wrong — please try again.'
       if (error?.context) { try { msg = (await error.context.json())?.error || msg } catch { /* keep */ } }
-      setErr(msg); setBusy(false); return
+      setErr(msg); setStage('form'); return
     }
-    await signIn()
+    window.__dentoraAuthHold = false
+    window.location.reload()
+  }
+
+  if (stage === 'verify') {
+    return (
+      <div className="login-wrap">
+        <div className="login-card">
+          <Logo sub="Verify your email" />
+          <CodeStep email={f.email.trim()} onBack={() => setStage('form')} onVerified={completeSignup} />
+          {err && <div className="small" style={{ color: 'var(--red)', marginTop: 10 }}>{err}</div>}
+        </div>
+      </div>
+    )
   }
 
   const ok = tab === 'signin'
@@ -125,13 +255,16 @@ function PatientAuth({ onHome }) {
           onClick={tab === 'signin' ? signIn : signUp}>
           {busy ? 'One moment…' : tab === 'signin' ? 'Sign in' : 'Create account'}
         </button>
-        <button className="btn ghost" style={{ width: '100%', marginTop: 6, justifyContent: 'center' }} onClick={onHome}>← Back</button>
+        {tab === 'signin' && (
+          <button className="btn ghost sm" style={{ width: '100%', marginTop: 6, justifyContent: 'center' }} onClick={onReset}>Forgot password?</button>
+        )}
+        <button className="btn ghost" style={{ width: '100%', marginTop: 2, justifyContent: 'center' }} onClick={onHome}>← Back</button>
       </div>
     </div>
   )
 }
 
-function SignIn({ onSignup, onHome }) {
+function SignIn({ onSignup, onHome, onReset }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
@@ -158,7 +291,10 @@ function SignIn({ onSignup, onHome }) {
         <button className="btn" style={{ width: '100%', marginTop: 18, justifyContent: 'center' }} disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
-        <button type="button" className="btn ghost" style={{ width: '100%', marginTop: 8, justifyContent: 'center' }} onClick={onSignup}>
+        <button type="button" className="btn ghost sm" style={{ width: '100%', marginTop: 6, justifyContent: 'center' }} onClick={onReset}>
+          Forgot password?
+        </button>
+        <button type="button" className="btn ghost" style={{ width: '100%', marginTop: 2, justifyContent: 'center' }} onClick={onSignup}>
           New here? Set up your clinic →
         </button>
         <button type="button" className="btn ghost" style={{ width: '100%', marginTop: 2, justifyContent: 'center', color: 'var(--ink-40)' }} onClick={onHome}>← Back</button>
@@ -185,6 +321,15 @@ function SignupWizard({ onBack }) {
     : step === 2 ? f.owner_name.trim() && /.+@.+\..+/.test(f.email) && f.password.length >= 8
     : true
 
+  const sendCode = async () => {
+    setBusy(true); setErr('')
+    window.__dentoraAuthHold = true
+    const { error } = await sb.auth.signInWithOtp({ email: f.email.trim(), options: { shouldCreateUser: true } })
+    setBusy(false)
+    if (error) return setErr(/rate/i.test(error.message) ? 'Too many codes requested — wait a few minutes and try again.' : error.message)
+    setStep('verify')
+  }
+
   const finish = async () => {
     setBusy(true); setErr('')
     const { data, error } = await sb.functions.invoke('signup-clinic', { body: f })
@@ -193,19 +338,24 @@ function SignupWizard({ onBack }) {
       if (error?.context) { try { msg = (await error.context.json())?.error || msg } catch { /* keep msg */ } }
       setErr(msg); setBusy(false); return
     }
-    const { error: se } = await sb.auth.signInWithPassword({ email: f.email, password: f.password })
-    if (se) { setErr('Clinic created — now sign in with your new details.'); setBusy(false); onBack() }
+    window.__dentoraAuthHold = false
+    window.location.reload()
   }
 
   return (
     <div className="login-wrap">
       <div className="login-card" style={{ maxWidth: 440 }}>
-        <Logo sub={`Set up your clinic · step ${step} of 3`} />
+        <Logo sub={`Set up your clinic · step ${step === 'verify' ? 3 : step === 3 ? 4 : step} of 4`} />
         <div className="row" style={{ gap: 4, marginBottom: 18 }}>
-          {[1, 2, 3].map((s) => (
-            <div key={s} style={{ flex: 1, height: 5, borderRadius: 99, background: s <= step ? 'var(--teal)' : 'var(--line)' }} />
-          ))}
+          {[1, 2, 3, 4].map((s) => {
+            const cur = step === 'verify' ? 3 : step === 3 ? 4 : step
+            return <div key={s} style={{ flex: 1, height: 5, borderRadius: 99, background: s <= cur ? 'var(--teal)' : 'var(--line)' }} />
+          })}
         </div>
+
+        {step === 'verify' && (
+          <CodeStep email={f.email.trim()} onBack={() => setStep(2)} onVerified={() => setStep(3)} />
+        )}
 
         {step === 1 && (
           <div className="grid" style={{ gap: 12 }}>
@@ -252,19 +402,25 @@ function SignupWizard({ onBack }) {
 
         {err && <div className="small" style={{ color: 'var(--red)', marginTop: 12 }}>{err}</div>}
 
+        {step !== 'verify' && (
         <div className="row" style={{ marginTop: 18 }}>
           <button className="btn secondary" style={{ flex: 1, justifyContent: 'center' }}
-            onClick={() => (step === 1 ? onBack() : setStep(step - 1))} disabled={busy}>
+            onClick={() => (step === 1 ? onBack() : setStep(step === 3 ? 2 : step - 1))} disabled={busy}>
             {step === 1 ? 'Back to sign in' : 'Back'}
           </button>
-          {step < 3 ? (
-            <button className="btn" style={{ flex: 1, justifyContent: 'center' }} disabled={!canNext} onClick={() => setStep(step + 1)}>Next</button>
-          ) : (
+          {step === 1 && <button className="btn" style={{ flex: 1, justifyContent: 'center' }} disabled={!canNext} onClick={() => setStep(2)}>Next</button>}
+          {step === 2 && (
+            <button className="btn" style={{ flex: 1, justifyContent: 'center' }} disabled={!canNext || busy} onClick={sendCode}>
+              {busy ? 'Sending code…' : 'Verify my email →'}
+            </button>
+          )}
+          {step === 3 && (
             <button className="btn" style={{ flex: 1, justifyContent: 'center' }} disabled={busy} onClick={finish}>
               {busy ? 'Setting up…' : 'Create my clinic'}
             </button>
           )}
         </div>
+        )}
       </div>
     </div>
   )
