@@ -10,6 +10,9 @@ import Handover from './pages/Handover.jsx'
 import Portal from './pages/Portal.jsx'
 import CheckIn from './pages/CheckIn.jsx'
 import LabWork from './pages/LabWork.jsx'
+import Ortho from './pages/Ortho.jsx'
+import Endo from './pages/Endo.jsx'
+import { hasPackage } from './specialty/packages.js'
 import VideoCall from './pages/VideoCall.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Diary from './pages/Diary.jsx'
@@ -34,10 +37,15 @@ const I = {
   clip: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4a3 3 0 0 1 6 0M9 11h6M9 15h6"/></svg>,
 }
 
-function Nav({ onNavigate }) {
+function Nav({ onNavigate, clinic }) {
+  const specialty = [
+    ...(hasPackage(clinic, 'ortho') ? [['/ortho', 'Orthodontics', I.chart]] : []),
+    ...(hasPackage(clinic, 'endo') ? [['/endo', 'Endodontics', I.chart]] : []),
+  ]
   const sections = [
     [null, [['/', 'Dashboard', I.home], ['/diary', 'Diary', I.cal]]],
     ['Clinical', [['/patients', 'Patients', I.people], ['/handover', 'Handover', I.clip], ['/lab', 'Lab work', I.check]]],
+    ...(specialty.length ? [['Specialty', specialty]] : []),
     ['Front desk', [['/checkin', 'Check-in', I.people], ['/recalls', 'Recalls', I.bell], ['/referrals', 'Referrals', I.send], ['/billing', 'Billing', I.euro]]],
     ['Practice', [['/tasks', 'Tasks', I.check], ['/reports', 'Reports', I.chart], ['/settings', 'Settings', I.cog]]],
   ]
@@ -97,7 +105,7 @@ function Shell() {
               <div className="logo-name">Dentora</div>
             </div>
           </div>
-          <Nav onNavigate={() => setNavOpen(false)} />
+          <Nav onNavigate={() => setNavOpen(false)} clinic={clinic} />
           <div className="sidebar-foot">
             <div className="row" style={{ gap: 9 }}>
               <div style={{
@@ -139,6 +147,8 @@ function Shell() {
             <Route path="/video/:id" element={<VideoCall staff />} />
             <Route path="/checkin" element={<CheckIn />} />
             <Route path="/lab" element={<LabWork />} />
+            <Route path="/ortho" element={<Ortho />} />
+            <Route path="/endo" element={<Endo />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Settings />} />

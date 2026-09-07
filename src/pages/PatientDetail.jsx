@@ -6,8 +6,11 @@ import Odontogram, { CONDITIONS } from '../Odontogram.jsx'
 import { BpeModal, PerioModal, bpeFlag, SEXTANTS } from '../PerioChart.jsx'
 import { PatientModal } from './Patients.jsx'
 import { useClinic } from '../clinic.jsx'
+import { hasPackage } from '../specialty/packages.js'
+import OrthoTab from '../specialty/OrthoTab.jsx'
+import EndoTab from '../specialty/EndoTab.jsx'
 
-const TABS = ['Overview', 'Dental chart', 'Notes', 'Treatment plans', 'Billing', 'Imaging', 'Comms']
+const BASE_TABS = ['Overview', 'Dental chart', 'Notes', 'Treatment plans', 'Billing', 'Imaging', 'Comms']
 
 export const SCHEME_META = {
   private: { label: 'Private', cls: 'b-gray' },
@@ -21,6 +24,8 @@ export default function PatientDetail() {
   const [tab, setTab] = useState('Overview')
   const [editing, setEditing] = useState(false)
   const toast = useToast()
+  const { clinic: myClinic } = useClinic()
+  const TABS = [...BASE_TABS, ...(hasPackage(myClinic, 'ortho') ? ['Ortho'] : []), ...(hasPackage(myClinic, 'endo') ? ['Endo'] : [])]
 
   const load = () => sb.from('dental_patients').select('*').eq('id', id).single().then(({ data }) => setP(data))
   useEffect(() => { load() }, [id])
@@ -66,6 +71,8 @@ export default function PatientDetail() {
         {tab === 'Treatment plans' && <PlansTab patientId={id} />}
         {tab === 'Billing' && <BillingTab patientId={id} />}
         {tab === 'Imaging' && <ImagingTab patientId={id} patient={p} />}
+        {tab === 'Ortho' && <OrthoTab patientId={id} patient={p} />}
+        {tab === 'Endo' && <EndoTab patientId={id} patient={p} />}
         {tab === 'Comms' && <CommsTab patientId={id} patient={p} />}
       </div>
       {editing && <PatientModal patient={p} onSave={saveEdit} onClose={() => setEditing(false)} />}

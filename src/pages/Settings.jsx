@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { sb, euro } from '../supabase.js'
 import { Modal, useToast } from '../ui.jsx'
 import { useClinic } from '../clinic.jsx'
+import { PACKAGES } from '../specialty/packages.js'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 
@@ -79,6 +80,7 @@ export default function Settings() {
         <div className="grid" style={{ gridTemplateColumns: '1fr 1.5fr', alignItems: 'start' }}>
           <div className="grid" style={{ gap: 16 }}>
             <PracticeCard clinic={clinic} onSave={saveClinic} />
+            <AddonsCard clinic={clinic} canManage={['owner', 'admin'].includes(role)} onSave={saveClinic} />
 
             <TeamCard members={members} canManage={['owner', 'admin'].includes(role)} onInvite={() => setInviting(true)} onChanged={load} />
 
@@ -550,6 +552,44 @@ function MessagesCard({ clinicId }) {
           </div>
         </Modal>
       )}
+    </div>
+  )
+}
+
+function AddonsCard({ clinic, canManage, onSave }) {
+  const addons = Array.isArray(clinic.addons) ? clinic.addons : []
+  const toggle = (key) => {
+    const next = addons.includes(key) ? addons.filter((k) => k !== key) : [...addons, key]
+    onSave({ addons: next })
+  }
+  const monthly = addons.reduce((s, k) => s + (PACKAGES[k]?.price || 0), 0)
+  return (
+    <div className="card card-pad">
+      <div className="card-title">
+        Specialty packages
+        {monthly > 0 && <span className="badge b-teal">+€{monthly}/mo</span>}
+      </div>
+      <div className="grid" style={{ gap: 10 }}>
+        {Object.values(PACKAGES).map((p) => {
+          const on = addons.includes(p.key)
+          return (
+            <div key={p.key} style={{ padding: '12px 14px', border: `1px solid ${on ? 'var(--accent)' : 'var(--line)'}`, borderRadius: 9, background: on ? 'var(--accent-soft)' : 'transparent' }}>
+              <div className="spread">
+                <div>
+                  <div style={{ fontWeight: 600 }}>{p.name} <span className="small muted" style={{ fontWeight: 500 }}>· +€{p.price}/month</span></div>
+                  <div className="small muted" style={{ marginTop: 3, lineHeight: 1.5 }}>{p.blurb}</div>
+                </div>
+                {canManage && (
+                  <button className={`btn sm ${on ? 'secondary' : ''}`} onClick={() => toggle(p.key)} style={{ flexShrink: 0 }}>
+                    {on ? 'Enabled — turn off' : 'Enable'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <p className="small muted" style={{ marginTop: 10 }}>Packages add a Specialty section to the menu and a tab on every patient record. Billed monthly with your plan; turn off any time.</p>
     </div>
   )
 }

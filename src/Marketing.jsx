@@ -99,7 +99,7 @@ export default function Marketing({ onTrial, onStaff, onPatient }) {
 
       <section className="mk-section" id="pricing" style={{ paddingTop: 0 }}>
         <h2>Flat, honest pricing</h2>
-        <p className="lead">Per practice — unlimited users, every feature included. 30 days free on every plan.</p>
+        <p className="lead">Per practice — unlimited users, every feature included. 30 days free on every plan. Specialty packages for orthodontics (+€129/mo) and endodontics (+€89/mo) can be added to any plan.</p>
         <div className="mk-price-grid">
           <div className="mk-price">
             <div className="who">Solo</div>
